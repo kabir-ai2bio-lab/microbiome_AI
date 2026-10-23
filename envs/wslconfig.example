@@ -1,0 +1,8 @@
+# Copy to C:\Users\<you>\.wslconfig, then run `wsl --shutdown` in PowerShell.
+# Without this, WSL2 only sees about half of the RAM.
+# processors: all logical CPUs (Ryzen 7 5800X = 8 cores / 16 threads)
+# memory: leave ~8 GB for Windows on a 32 GB machine
+[wsl2]
+processors=16
+memory=24GB
+swap=8GB
