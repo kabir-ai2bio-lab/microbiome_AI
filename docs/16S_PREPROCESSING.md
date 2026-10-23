@@ -48,7 +48,7 @@ run_16s.sh [--config FILE] [--mode dry-run|validation|full] [--threads N] [--unt
 | `--preflight` | | check tools, plugins, CPU, RAM and disk; run nothing |
 
 `run_end_to_end.sh` wraps these: preflight → dry run + analysis → full run → analysis. It
-reads `CONFIG`, `WORKDIR`, `EXPORT_DIR` (default `results/`), `THREADS`, `SKIP_FIGARO` and
+reads `CONFIG`, `WORKDIR`, `EXPORT_DIR` (default `outputs/`), `THREADS`, `SKIP_FIGARO` and
 `COMPARE_TO` from the environment.
 
 ## Resuming and reproducibility
@@ -73,8 +73,9 @@ reads `CONFIG`, `WORKDIR`, `EXPORT_DIR` (default `results/`), `THREADS`, `SKIP_F
 | QC gate + FIGARO | < 1 min | < 1 min |
 | DADA2 | 37 s | 8.4 min |
 | SILVA reference (once) | 5 min | cached |
-| VSEARCH taxonomy | 3 min | about 67 min |
+| VSEARCH taxonomy | 3 min | 71 min |
 | genus + finalize | 1 min | 1 min |
+| **total** | **about 12 min** | **93 min** (+ 3 min analysis) |
 
 VSEARCH is an exhaustive search of about 2,000 ASVs against about 500k SILVA sequences,
 so it dominates the run and scales almost linearly with cores.

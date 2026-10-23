@@ -12,7 +12,7 @@ REPO="$(cd "$HERE/../.." && pwd)"
 CONFIG="${CONFIG:-$REPO/configs/PRJNA496408.yaml}"
 PROJECT="$(awk '/^project:/{print $2}' "$CONFIG")"
 WORKDIR="${WORKDIR:-$HOME/biomefm_runs/$PROJECT}"
-EXPORT_DIR="${EXPORT_DIR:-$REPO/results}"
+EXPORT_DIR="${EXPORT_DIR:-$REPO/outputs}"
 FIGARO_FLAG="--figaro"; [[ -n "${SKIP_FIGARO:-}" ]] && FIGARO_FLAG=""
 EXTRA=(); [[ -n "${THREADS:-}" ]] && EXTRA+=(--threads "$THREADS")
 CONDA_BASE="${CONDA_BASE:-$HOME/miniforge3}"
