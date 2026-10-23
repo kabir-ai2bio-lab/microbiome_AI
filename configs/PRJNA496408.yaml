@@ -1,0 +1,88 @@
+# 16S amplicon preprocessing config for PRJNA496408 (AD / MCI / NC gut microbiome).
+# Values mirror the Colab run that produced the 93-sample genus matrix.
+
+project: PRJNA496408
+
+expected:                      # metadata sanity checks (pipeline stops if these differ)
+  paired_runs: 93
+  groups: {AD: 33, MCI: 32, NC: 28}
+
+labels:                        # PROVISIONAL labels inferred from NCBI metadata, not clinical verification
+  source_column: LibraryName
+  regex: '^(AD|MCI|NC)\d+$'
+
+pilot_run: SRR8061802          # always included in dry-run / validation cohorts
+selection_seed: 20261011
+
+modes:
+  dry-run:                     # smoke test: few samples, few reads, every step runs
+    n_samples: 3
+    subsample_pairs: 5000
+    n_reads_learn: 15000
+  validation:
+    n_samples: 10
+  full: {}                     # all runs, one joint DADA2
+
+# Reference numbers: a correct installation reproduces these exactly (DADA2 is
+# deterministic for identical input). The pipeline warns if they differ.
+expected_results:
+  dry-run:
+    asvs: 71
+    non_chimeric: {SRR8061756: 3082, SRR8061776: 3203, SRR8061802: 3558}
+  full:                        # also matches the original Colab run
+    asvs: 2002
+    total_input: 4295280
+    total_non_chimeric: 3054807
+
+primers:                       # candidate primers (orientation as observed in the pilot)
+  r1: GGACTACHVGGGTWTCTAAT     # 806R-like, found in Read 1
+  r2: ACTCCTACGGGAGGCAGCAG     # 338F-like, found in Read 2
+
+cutadapt:
+  error_rate: 0.1
+  min_overlap: 15
+
+dada2:                         # post-Cutadapt coordinates
+  trunc_f: 250
+  trunc_r: 240
+  max_ee_f: 4
+  max_ee_r: 6
+  n_reads_learn: 100000
+
+expected_insert_upper: 429     # longest pilot ASV; used for overlap check and FIGARO
+min_paired_overlap: 20
+
+qc:
+  min_cutadapt_retained: 0.80
+  min_trunc_eligible: 0.95
+  min_dada2_retained_pct: 20
+
+reference:
+  silva_version: "138"
+  silva_target: SSURef_NR99
+
+vsearch:
+  identity: 0.90               # exploratory, permissive at genus rank
+  query_coverage: 0.80
+  maxaccepts: 10
+
+genus_filter:                  # paper-inspired, applied within this single project only
+  min_samples_present: 2
+  min_corpus_fraction: 0.00001 # 0.001 %
+
+figaro:                        # advisory only; suggestions are raw-read coordinates
+  amplicon_length: 429
+  forward_primer_length: 20
+  reverse_primer_length: 20
+  min_overlap: 20
+
+download:
+  max_size: 20G
+  parallel_jobs: 4             # concurrent SRA downloads; threads are split between them
+  delete_sra_after_fastq: true
+
+warnings:
+  - No independently validated diagnoses
+  - Primers/insert length not independently verified
+  - 90%-identity genus taxonomy is permissive
+  - Single BioProject; no cross-study filtering or MMUPHin batch correction
