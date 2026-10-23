@@ -1,0 +1,9 @@
+{
+  "n_samples": 3,
+  "group_sizes": {
+    "NC": 1,
+    "MCI": 1,
+    "AD": 1
+  },
+  "median_unassigned_fraction": 0.0346550109272556
+}

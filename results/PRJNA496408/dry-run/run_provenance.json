@@ -1,0 +1,65 @@
+{
+  "project": "PRJNA496408",
+  "mode": "dry-run",
+  "mode_settings": {
+    "n_samples": 3,
+    "subsample_pairs": 5000,
+    "n_reads_learn": 15000
+  },
+  "samples": [
+    "SRR8061802",
+    "SRR8061776",
+    "SRR8061756"
+  ],
+  "joint_dada2_across_samples": true,
+  "qiime_version": "q2cli version 2026.7.0\nRun `qiime info` for more version details.",
+  "cpu_threads": 16,
+  "primers": {
+    "r1": "GGACTACHVGGGTWTCTAAT",
+    "r2": "ACTCCTACGGGAGGCAGCAG"
+  },
+  "cutadapt": {
+    "error_rate": 0.1,
+    "min_overlap": 15
+  },
+  "dada2": {
+    "trunc_f": 250,
+    "trunc_r": 240,
+    "max_ee_f": 4,
+    "max_ee_r": 6,
+    "n_reads_learn": 100000
+  },
+  "reference": {
+    "silva_version": "138",
+    "silva_target": "SSURef_NR99"
+  },
+  "vsearch": {
+    "identity": 0.9,
+    "query_coverage": 0.8,
+    "maxaccepts": 10
+  },
+  "figaro_run": true,
+  "clinical_labels": "INFERRED FROM NCBI LibraryName; NOT VERIFIED",
+  "fastqc": "skipped (assumed done by the original study); QIIME quality plots available",
+  "warnings": [
+    "No independently validated diagnoses",
+    "Primers/insert length not independently verified",
+    "90%-identity genus taxonomy is permissive",
+    "Single BioProject; no cross-study filtering or MMUPHin batch correction"
+  ],
+  "step_seconds": {
+    "metadata": 0.0,
+    "select": 0.0,
+    "download": 0.0,
+    "import": 0.0,
+    "cutadapt": 0.0,
+    "qc": 0.0,
+    "figaro": 0.0,
+    "dada2": 0.0,
+    "dada2-stats": 0.0,
+    "reference": 0.0,
+    "taxonomy": 0.0,
+    "genus": 0.0
+  },
+  "finished": "2026-10-22T20:58:23"
+}

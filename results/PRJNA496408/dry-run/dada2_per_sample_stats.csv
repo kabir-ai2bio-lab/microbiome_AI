@@ -1,0 +1,4 @@
+sample-id,input,filtered,percentage of input passed filter,denoised,merged,percentage of input merged,non-chimeric,percentage of input non-chimeric,retained_pct,merged_pct,filtered_pct
+SRR8061756,4994,3678,73.65,3630,3082,61.71,3082,61.71,61.71,61.71,73.65
+SRR8061776,4990,4052,81.2,4014,3447,69.08,3203,64.19,64.19,69.08,81.2
+SRR8061802,4992,4038,80.89,3999,3615,72.42,3558,71.27,71.27,72.42,80.89

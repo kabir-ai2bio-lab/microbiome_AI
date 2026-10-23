@@ -28,6 +28,9 @@ envs/
   wslconfig.example              ← optional WSL2 CPU / RAM settings
 docs/
   16S_PREPROCESSING.md           ← technical reference: steps, parameters, outputs, troubleshooting
+results/
+  PRJNA496408/full/              ← reference results of the full 93-sample run (ML matrix, report, QC)
+  PRJNA496408/dry-run/           ← reference results of the 3-sample dry run
 ```
 
 ## Quick start
@@ -40,8 +43,12 @@ bash Scripts/amplicon_16s/run_end_to_end.sh --dry-run-only     # 2. verify (~10-
 bash Scripts/amplicon_16s/run_end_to_end.sh                    # 3. full run + analysis
 ```
 
-Results are written to `results/PRJNA496408/`. Open
-`results/PRJNA496408/full/analysis/analysis_report.html` in a browser.
+Your results are written to `outputs/PRJNA496408/`. Open
+`outputs/PRJNA496408/full/analysis/analysis_report.html` in a browser.
+
+**Just want the data?** The finished results of the full run are already in this repo under
+[`results/PRJNA496408/`](results/PRJNA496408/). Download the genus matrix and the report
+without running anything ([summary below](#reference-results-prjna496408)).
 
 ---
 
@@ -59,7 +66,7 @@ Results are written to `results/PRJNA496408/`. Open
 
 | Machine | Time |
 |---|---|
-| 16 threads (Ryzen 7 5800X, Windows + WSL1) | about 1.5 h |
+| 16 threads (Ryzen 7 5800X, Windows + WSL1) | 93 min (measured) |
 | 10 CPUs (Google Colab) | 3–4 h |
 | 4 CPUs (laptop) | roughly 5–6 h (estimate) |
 
@@ -140,15 +147,16 @@ Colab run exactly: 4,295,280 → 3,054,807 reads (median retention 71.96%), 2,00
 * **Interrupted?** Run the same command again. Finished steps (downloads, QIIME
   artifacts, SILVA) are skipped automatically.
 * **Options** (environment variables): `THREADS=8` limits CPU use, `SKIP_FIGARO=1`
-  skips FIGARO, `EXPORT_DIR=/path` changes the results folder, and
-  `COMPARE_TO=/path/to/matrix.csv` compares against a previous result.
+  skips FIGARO, `EXPORT_DIR=/path` changes the output folder (default `outputs/`), and
+  `COMPARE_TO=/path/to/matrix.csv` compares against a previous result, e.g.
+  `COMPARE_TO=results/PRJNA496408/full/genus/genus_relative_with_provisional_labels.csv`.
 
 Individual steps can also be run directly. See `bash Scripts/amplicon_16s/run_16s.sh --help`
 and [docs/16S_PREPROCESSING.md](docs/16S_PREPROCESSING.md).
 
 ## 5. Results
 
-`results/PRJNA496408/full/`:
+`outputs/PRJNA496408/full/` (same layout as the reference results in `results/PRJNA496408/full/`):
 
 | File | What it is |
 |---|---|
@@ -180,6 +188,37 @@ To re-run only the analysis on an existing result:
 conda activate rachis-qiime2-2026.7
 python Scripts/amplicon_16s/analyze_genus.py --cohort-dir ~/biomefm_runs/PRJNA496408/cohorts/full
 ```
+
+## Reference results (PRJNA496408)
+
+Produced on 2026-10-22 by the full run above (16 threads, 93 min) and committed in
+[`results/PRJNA496408/full/`](results/PRJNA496408/full/). The genus matrix is
+**identical** to the original Colab run: all 93 samples, every value and every label.
+
+**Processing**
+
+| | |
+|---|---|
+| Samples | 93 (AD 33, MCI 32, NC 28; provisional labels) |
+| Reads | 4,295,280 raw pairs → 3,054,807 after DADA2 (median retention 71.96%, range 48.7–78.9%) |
+| Features | 2,002 ASVs → 224 named genera (162 after the prevalence/abundance filter) |
+| ML input | [`genus/genus_relative_with_provisional_labels.csv`](results/PRJNA496408/full/genus/genus_relative_with_provisional_labels.csv) (93 × 225 + label) |
+
+**Analysis** (full tables and figures in
+[`analysis/analysis_report.html`](results/PRJNA496408/full/analysis/analysis_report.html);
+download and open it in a browser)
+
+| Analysis | Result |
+|---|---|
+| Alpha diversity | Shannon differs between groups (Kruskal-Wallis p = 0.015); observed genera p = 0.083 |
+| Beta diversity | Bray-Curtis PERMANOVA R² = 0.063, p = 0.001; all pairwise comparisons p < 0.05 |
+| Differential abundance | no genus significant after BH-FDR; top candidates *[Eubacterium] hallii group*, *Bacteroides*, *[Eubacterium] brachy group*, *Klebsiella*, *Alistipes* |
+| ML baseline (5-fold CV × 10, logistic L2) | AD vs MCI AUC 0.80 ± 0.11 (perm p = 0.005); MCI vs NC 0.74 ± 0.12 (p = 0.02); AD vs NC 0.64 ± 0.16 (p = 0.08); 3-class 0.72 ± 0.08 (p = 0.005) |
+| ML baseline (random forest) | AD vs MCI 0.74; MCI vs NC 0.69; AD vs NC 0.56; 3-class 0.64 |
+
+Sequencing depth also differs between groups (Kruskal-Wallis p = 0.045), which can
+contribute to the diversity and ML differences. With 93 samples and provisional labels,
+these are exploratory baselines, not validated findings.
 
 ## 6. Adding another dataset
 
