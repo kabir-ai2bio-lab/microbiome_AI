@@ -1,0 +1,57 @@
+# 16S config for PRJNA690972 (Beijing, China; MCI vs NC).
+# Dataset #9 of Wang et al. 2026 (mSystems 11:e01754-25), Table 1: 13 MCI / 33 NC = 46, V3-V4, single.
+#
+# LABELS NEEDED: the project has 80 runs (SampleName G* 26, S* 54) and no diagnosis in NCBI; which 46
+# runs the paper used is not recorded there either. Create labels/PRJNA690972.csv with columns
+# Run,Diagnosis (MCI or NC) for exactly those 46 runs, from the original publication or its authors.
+# Only runs listed in the file are used.
+
+project: PRJNA690972
+layout: single
+
+expected:
+  runs: 46
+  groups: {MCI: 13, NC: 33}
+
+labels:
+  file: labels/PRJNA690972.csv
+  join_column: Run
+  source_column: Diagnosis
+  regex: '^(MCI|NC)$'
+
+selection_seed: 20261011
+
+modes:
+  dry-run: {n_samples: 2, subsample_pairs: 5000, n_reads_learn: 10000}
+  validation: {n_samples: 10}
+  full: {}
+
+# Verified in raw reads: merged single reads (425-445 bp) that start with the last base of 341F
+# ("G", removed by trim_left) and end with the reverse-complemented 806R (removed by Cutadapt).
+primers:
+  r1: null
+  r1_3prime: ATTAGAWACCCBDGTAGTCC   # reverse complement of 806R
+
+cutadapt: {error_rate: 0.1, min_overlap: 15}
+
+dada2:
+  truncation: config
+  trim_left: 1
+  trunc_f: 0                   # keep the full merged read
+  max_ee_f: 2
+  max_ee_r: 2                  # unused (single-end)
+  n_reads_learn: 100000
+
+expected_insert_upper: 430
+min_paired_overlap: 0
+
+qc: {min_cutadapt_retained: 0.80, min_trunc_eligible: 0.95, min_dada2_retained_pct: 20}
+reference: {silva_version: "138", silva_target: SSURef_NR99}
+vsearch: {identity: 0.90, query_coverage: 0.80, maxaccepts: 10}
+genus_filter: {min_samples_present: 2, min_corpus_fraction: 0.00001}
+
+download: {max_size: 20G, parallel_jobs: 4, delete_sra_after_fastq: true}
+
+warnings:
+  - Labels and the 46-run selection supplied by the user (labels/PRJNA690972.csv), not from NCBI
+  - Pre-merged single-end reads, so FIGARO is not used

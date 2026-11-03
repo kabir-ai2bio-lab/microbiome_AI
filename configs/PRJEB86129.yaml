@@ -1,0 +1,55 @@
+# 16S config for PRJEB86129 (Puerto Rico, USA; AD vs NC).
+# Dataset #15 of Wang et al. 2026 (mSystems 11:e01754-25), Table 1: 51 AD / 51 NC, V4, single.
+#
+# The project has 207 runs: 102 feces, 104 saliva and 1 water blank. Only the 102 feces runs are
+# used, which matches the paper. Diagnosis: BioSample attribute patient_group (Alzheimer / Control).
+
+project: PRJEB86129
+layout: single
+biosample_attributes: true
+
+include:
+  sample_type: feces
+
+expected:
+  runs: 102
+  groups: {AD: 51, NC: 51}
+
+labels:
+  source_column: patient_group
+  patterns: {AD: '^Alzheimer$', NC: '^Control$'}
+  unique_column: host_subject_id
+
+selection_seed: 20261011
+
+modes:
+  dry-run: {n_samples: 2, subsample_pairs: 5000, n_reads_learn: 10000}
+  validation: {n_samples: 10}
+  full: {}
+
+# Verified in raw reads: single 251 bp reads starting TACG... (EMP V4, after 515F). No primers.
+primers: null
+
+cutadapt: {error_rate: 0.1, min_overlap: 15}
+
+dada2:                         # FIGARO needs paired-end reads; truncation set from read quality
+  truncation: config
+  trunc_f: 240                 # median quality >= 33 up to ~225-240 bp, drops at 250
+  max_ee_f: 2
+  max_ee_r: 2                  # unused (single-end)
+  n_reads_learn: 100000
+
+expected_insert_upper: 253
+min_paired_overlap: 0
+
+qc: {min_cutadapt_retained: 0.80, min_trunc_eligible: 0.95, min_dada2_retained_pct: 20}
+reference: {silva_version: "138", silva_target: SSURef_NR99}
+vsearch: {identity: 0.90, query_coverage: 0.80, maxaccepts: 10}
+genus_filter: {min_samples_present: 2, min_corpus_fraction: 0.00001}
+
+download: {max_size: 20G, parallel_jobs: 4, delete_sra_after_fastq: true}
+
+warnings:
+  - Labels from the BioSample attribute patient_group; not clinically verified
+  - Saliva runs and the water blank are excluded
+  - Single-end reads, so FIGARO is not used; truncation 240 chosen from read quality (not stated in the paper)
