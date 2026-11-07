@@ -15,6 +15,7 @@ labels:
   file: labels/PRJNA611839.csv
   join_column: Run
   source_column: Diagnosis
+  unique_column: SampleName      # one run per sample
   regex: '^(AD|NC)$'
 
 selection_seed: 20261011

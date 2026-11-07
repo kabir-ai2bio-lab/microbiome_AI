@@ -1,0 +1,51 @@
+# PRJNA496408 processed like every other paired-end dataset: DADA2 truncation and maxEE chosen by
+# FIGARO, as in Wang et al. 2026. Dataset #1 of the paper, Table 1: 33 AD / 32 MCI / 28 NC.
+#
+# PRJNA496408.yaml keeps the fixed settings of the original Colab run (250/240) and reproduces that
+# run exactly; use it to verify an installation. Use THIS file for the paper-consistent matrix.
+
+project: PRJNA496408
+dataset: PRJNA496408_figaro
+
+expected:
+  runs: 93
+  groups: {AD: 33, MCI: 32, NC: 28}
+
+labels:
+  source_column: LibraryName
+  regex: '^(AD|MCI|NC)\d+$'
+
+pilot_run: SRR8061802
+selection_seed: 20261011
+
+modes:
+  dry-run: {n_samples: 3, subsample_pairs: 5000, n_reads_learn: 15000}
+  validation: {n_samples: 10}
+  full: {}
+
+primers:                       # as in PRJNA496408.yaml (806R-like on R1, 338F-like on R2, position 0)
+  r1: GGACTACHVGGGTWTCTAAT
+  r2: ACTCCTACGGGAGGCAGCAG
+
+cutadapt: {error_rate: 0.1, min_overlap: 15}
+
+dada2:
+  truncation: figaro           # truncation lengths + maxEE = FIGARO's best choice, as in the paper
+  max_ee_f: 4
+  max_ee_r: 6
+  n_reads_learn: 100000
+
+expected_insert_upper: 429
+min_paired_overlap: 20
+
+qc: {min_cutadapt_retained: 0.80, min_trunc_eligible: 0.95, min_dada2_retained_pct: 20}
+reference: {silva_version: "138", silva_target: SSURef_NR99}
+vsearch: {identity: 0.90, query_coverage: 0.80, maxaccepts: 10}
+genus_filter: {min_samples_present: 2, min_corpus_fraction: 0.00001}
+
+figaro: {amplicon_length: 429, forward_primer_length: 20, reverse_primer_length: 20, min_overlap: 20}
+
+download: {max_size: 20G, parallel_jobs: 4, delete_sra_after_fastq: true}
+
+warnings:
+  - Labels inferred from NCBI LibraryName prefixes (AD / MCI / NC); not clinically verified

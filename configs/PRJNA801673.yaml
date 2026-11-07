@@ -1,9 +1,8 @@
 # 16S config for PRJNA801673 (Chicago, IL, USA; MCI vs NC).
 # Dataset #13 of Wang et al. 2026 (mSystems 11:e01754-25), Table 1: 30 MCI / 30 NC = 60, V4, paired.
 #
-# LABELS NEEDED: the NCBI metadata (SampleName AML01-AML60) has no diagnosis. Create
-# labels/PRJNA801673.csv with columns Run,Diagnosis (MCI or NC) for the 60 runs, from the original
-# publication or its authors. The pipeline stops with a clear message until the file exists.
+# NCBI has no diagnosis. Labels come from the original paper, McLeod et al. 2023 (PLoS One 18:e0280211),
+# S1 Table: RRC_ID (= SRA SampleName AML01-AML83) and MCI (Y -> MCI, N -> NC) = 30 / 30, as in the paper.
 
 project: PRJNA801673
 
@@ -13,8 +12,9 @@ expected:
 
 labels:
   file: labels/PRJNA801673.csv
-  join_column: Run
+  join_column: SampleName
   source_column: Diagnosis
+  unique_column: SampleName      # one run per sample
   regex: '^(MCI|NC)$'
 
 selection_seed: 20261011
@@ -50,5 +50,5 @@ figaro: {amplicon_length: 253, forward_primer_length: 19, reverse_primer_length:
 download: {max_size: 20G, parallel_jobs: 4, delete_sra_after_fastq: true}
 
 warnings:
-  - Labels supplied by the user (labels/PRJNA801673.csv), not from NCBI
+  - Labels from McLeod et al. 2023 S1 Table (labels/PRJNA801673.csv), not from NCBI
   - Short reads (2 x 153): small read-pair overlap

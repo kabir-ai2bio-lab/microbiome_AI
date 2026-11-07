@@ -60,15 +60,15 @@ run count and group counts against it and stops if NCBI gives anything else.
 | 6 | PRJNA946900 | 438 | 225 / 38 / 175 | V4–V5, 2×238 | mixed read orientation, re-oriented automatically |
 | 7 | PRJNA792014 | 26 | 13 / – / 13 | V3–V4, 2×250 | |
 | 8 | PRJNA855571 | 165 | 125 / – / 40 | V3–V4, single (merged) | gut runs only (the other 171 are oral) |
-| 9 | PRJNA690972 | 46 | – / 13 / 33 | V3–V4, single (merged) | ⚠ labels and run list needed |
+| 9 | PRJNA690972 | 46 | – / 13 / 33 | V3–V4, single (merged) | labels from the original paper (`labels/`) |
 | 10 | PRJNA811324 | 84 | 41 / – / 43 | V3–V4, single (merged) | |
 | 11 | PRJNA734525_batch1 + _batch2 | 62 + 63 | 47 / 27 / 51 | V3–V4, 2×232 and 2×281 | two sequencing batches, each denoised on its own |
 | 12 | PRJEB51982 | 50 | 25 / – / 25 | V4, 2×251 | |
-| 13 | PRJNA801673 | 60 | – / 30 / 30 | V4, 2×153 | ⚠ labels needed |
+| 13 | PRJNA801673 | 60 | – / 30 / 30 | V4, 2×153 | labels from the original paper (`labels/`) |
 | 14 | PRJNA770746 | 99 | 45 / – / 54 | V4, 2×251 | stool runs only (the other 99 are oral) |
 | 15 | PRJEB86129 | 102 | 51 / – / 51 | V4, single 251 | stool runs only (saliva and a blank excluded) |
 
-**12 datasets run as they are.** The other 3 need a label file first ([section 5](#5-the-3-datasets-without-labels-in-ncbi)).
+**14 datasets run as they are.** 12 take their labels from NCBI and 2 from their original papers (`labels/`). PRJNA611839 still needs labels from its authors ([section 5](#5-the-3-datasets-without-labels-in-ncbi)).
 
 How each dataset's samples and labels were found (all from NCBI metadata, checked against Table 1):
 sample/library name prefixes (e.g. `AD12` / `CON7`), or BioSample attributes such as
@@ -167,14 +167,14 @@ assigns taxonomy and writes the genus tables and the analysis report.
 ### All datasets
 
 ```bash
-for c in PRJNA792014 PRJEB51982 PRJNA811324 PRJNA554111 PRJNA734525_batch1 PRJNA734525_batch2 \
+for c in PRJNA792014 PRJNA690972 PRJEB51982 PRJNA801673 PRJNA811324 PRJNA554111 PRJNA734525_batch1 PRJNA734525_batch2 \
          PRJNA489760 PRJNA770746 PRJEB86129 PRJNA855571 PRJNA633959 PRJNA946900; do
   CONFIG=configs/$c.yaml bash Scripts/amplicon_16s/run_end_to_end.sh || echo "FAILED: $c"
 done
 ```
 
-This is the 12 datasets that have labels, smallest first. PRJNA496408 is already done; add it to
-reproduce it. Add the other 3 after creating their label files ([section 5](#5-the-3-datasets-without-labels-in-ncbi)).
+These are the 14 datasets that have labels, smallest first (PRJNA496408 is done already; add
+`PRJNA496408_figaro` for the FIGARO version). Add PRJNA611839 once its label file exists ([section 5](#5-the-3-datasets-without-labels-in-ncbi)).
 
 * **Long runs:** start them inside `tmux` (or `screen`) so they survive closing the terminal.
 * **Interrupted?** Run the same command again. Finished steps (downloads, QIIME
@@ -198,10 +198,14 @@ repository yet.
 
 ## 5. The 3 datasets without labels in NCBI
 
-PRJNA611839, PRJNA801673 and PRJNA690972 have no diagnosis anywhere in their NCBI metadata.
-Their configs are ready, but the pipeline stops with a clear message until you add a label file
-(`labels/<dataset>.csv` with columns `Run,Diagnosis`) taken from the original publication or its
-authors. See [labels/README.md](labels/README.md).
+PRJNA611839, PRJNA801673 and PRJNA690972 have no diagnosis in their NCBI metadata.
+
+* **PRJNA801673** and **PRJNA690972**: the labels were taken from the original papers' supplementary
+  tables and are in `labels/`. They reproduce the paper's counts exactly, so these run like the others.
+* **PRJNA611839**: its paper publishes no per-sample table, so the labels must come from the authors.
+  The pipeline stops with a clear message until `labels/PRJNA611839.csv` exists.
+
+See [labels/README.md](labels/README.md).
 
 ## 6. Results
 
