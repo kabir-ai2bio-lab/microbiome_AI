@@ -1,0 +1,104 @@
+{
+  "n_samples": 90,
+  "group_sizes": {
+    "NC": 30,
+    "MCI": 30,
+    "AD": 30
+  },
+  "median_unassigned_fraction": 0.00608688883067725,
+  "depth_kruskal_p": 0.002828536201217593,
+  "alpha_kruskal_p": {
+    "shannon": 0.007058285432533255,
+    "simpson": 0.0002680801207192806,
+    "observed_genera": 0.08797604949079918
+  },
+  "permanova": {
+    "all groups": {
+      "R2": 0.15527609991656857,
+      "p": 0.001
+    },
+    "NC vs MCI": {
+      "R2": 0.1841506656606104,
+      "p": 0.001
+    },
+    "NC vs AD": {
+      "R2": 0.18004411619204463,
+      "p": 0.001
+    },
+    "MCI vs AD": {
+      "R2": 0.011345312049938236,
+      "p": 0.794
+    }
+  },
+  "da_kruskal_q_lt_0.05": 40,
+  "da_top10": [
+    "Streptococcus",
+    "Bacteroides",
+    "UCG-003",
+    "Butyricimonas",
+    "Parabacteroides",
+    "Alistipes",
+    "Blautia",
+    "Sutterella",
+    "[Eubacterium]_xylanophilum_group",
+    "Lachnospiraceae_UCG-004"
+  ],
+  "ml": [
+    {
+      "task": "AD_vs_NC",
+      "model": "RandomForest",
+      "AUC_mean": 0.983888888888889,
+      "AUC_sd": 0.04412734098291242,
+      "perm_p": 0.004975124378109453
+    },
+    {
+      "task": "AD_vs_NC",
+      "model": "LogisticL2",
+      "AUC_mean": 0.9966666666666666,
+      "AUC_sd": 0.013193713430042109,
+      "perm_p": 0.004975124378109453
+    },
+    {
+      "task": "MCI_vs_NC",
+      "model": "RandomForest",
+      "AUC_mean": 0.9716666666666667,
+      "AUC_sd": 0.037056013657005074,
+      "perm_p": 0.004975124378109453
+    },
+    {
+      "task": "MCI_vs_NC",
+      "model": "LogisticL2",
+      "AUC_mean": 0.9622222222222221,
+      "AUC_sd": 0.04961580791503578,
+      "perm_p": 0.004975124378109453
+    },
+    {
+      "task": "AD_vs_MCI",
+      "model": "RandomForest",
+      "AUC_mean": 0.4666666666666666,
+      "AUC_sd": 0.1436946350708618,
+      "perm_p": 0.7313432835820896
+    },
+    {
+      "task": "AD_vs_MCI",
+      "model": "LogisticL2",
+      "AUC_mean": 0.46777777777777774,
+      "AUC_sd": 0.16190989721080926,
+      "perm_p": 0.736318407960199
+    },
+    {
+      "task": "AD_vs_MCI_vs_NC",
+      "model": "RandomForest",
+      "AUC_mean": 0.7895370370370371,
+      "AUC_sd": 0.05282819229572943,
+      "perm_p": 0.004975124378109453
+    },
+    {
+      "task": "AD_vs_MCI_vs_NC",
+      "model": "LogisticL2",
+      "AUC_mean": 0.7974074074074073,
+      "AUC_sd": 0.05662216844000003,
+      "perm_p": 0.004975124378109453
+    }
+  ]
+}

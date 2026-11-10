@@ -1,0 +1,129 @@
+{
+  "project": "PRJNA801673",
+  "dataset": "PRJNA801673",
+  "mode": "full",
+  "mode_settings": {},
+  "samples": [
+    "SRR17808859",
+    "SRR17808860",
+    "SRR17808861",
+    "SRR17808862",
+    "SRR17808863",
+    "SRR17808864",
+    "SRR17808865",
+    "SRR17808866",
+    "SRR17808867",
+    "SRR17808868",
+    "SRR17808869",
+    "SRR17808870",
+    "SRR17808871",
+    "SRR17808872",
+    "SRR17808873",
+    "SRR17808874",
+    "SRR17808875",
+    "SRR17808876",
+    "SRR17808877",
+    "SRR17808878",
+    "SRR17808879",
+    "SRR17808880",
+    "SRR17808881",
+    "SRR17808882",
+    "SRR17808883",
+    "SRR17808884",
+    "SRR17808885",
+    "SRR17808886",
+    "SRR17808887",
+    "SRR17808888",
+    "SRR17808889",
+    "SRR17808890",
+    "SRR17808891",
+    "SRR17808892",
+    "SRR17808893",
+    "SRR17808894",
+    "SRR17808895",
+    "SRR17808896",
+    "SRR17808897",
+    "SRR17808898",
+    "SRR17808899",
+    "SRR17808900",
+    "SRR17808901",
+    "SRR17808902",
+    "SRR17808903",
+    "SRR17808904",
+    "SRR17808905",
+    "SRR17808906",
+    "SRR17808907",
+    "SRR17808908",
+    "SRR17808909",
+    "SRR17808910",
+    "SRR17808911",
+    "SRR17808912",
+    "SRR17808913",
+    "SRR17808914",
+    "SRR17808915",
+    "SRR17808916",
+    "SRR17808917",
+    "SRR17808918"
+  ],
+  "joint_dada2_across_samples": true,
+  "qiime_version": "q2cli version 2026.7.0\nRun `qiime info` for more version details.",
+  "cpu_threads": 16,
+  "primers": {
+    "r1": "GTGYCAGCMGCCGCGGTAA",
+    "r2": "GGACTACHVGGGTWTCTAAT"
+  },
+  "cutadapt": {
+    "error_rate": 0.1,
+    "min_overlap": 15
+  },
+  "dada2": {
+    "truncation": "figaro",
+    "max_ee_f": 4,
+    "max_ee_r": 6,
+    "n_reads_learn": 100000
+  },
+  "reference": {
+    "silva_version": "138",
+    "silva_target": "SSURef_NR99"
+  },
+  "vsearch": {
+    "identity": 0.9,
+    "query_coverage": 0.8,
+    "maxaccepts": 10
+  },
+  "figaro_run": true,
+  "dada2_used": {
+    "trunc_len": [
+      133,
+      132
+    ],
+    "max_ee": [
+      1,
+      1
+    ],
+    "source": "FIGARO best"
+  },
+  "clinical_labels": "FROM labels/PRJNA801673.csv (original study's supplementary table)",
+  "fastqc": "skipped (assumed done by the original study); QIIME quality plots available",
+  "warnings": [
+    "Labels from McLeod et al. 2023 S1 Table (labels/PRJNA801673.csv), not from NCBI",
+    {
+      "Short reads (2 x 153)": "small read-pair overlap"
+    }
+  ],
+  "step_seconds": {
+    "metadata": 0.0,
+    "select": 0.0,
+    "download": 71.9,
+    "import": 114.3,
+    "cutadapt": 250.1,
+    "figaro": 14.0,
+    "qc": 3.9,
+    "dada2": 292.3,
+    "dada2-stats": 24.1,
+    "reference": 0.0,
+    "taxonomy": 752.4,
+    "genus": 50.9
+  },
+  "finished": "2026-11-07T19:48:26"
+}

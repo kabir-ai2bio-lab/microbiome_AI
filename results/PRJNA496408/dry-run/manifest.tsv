@@ -1,0 +1,4 @@
+sample-id	forward-absolute-filepath	reverse-absolute-filepath
+SRR8061802	/root/biomefm_runs/PRJNA496408/cohorts/dry-run/fastq_subsampled/SRR8061802_1.fastq.gz	/root/biomefm_runs/PRJNA496408/cohorts/dry-run/fastq_subsampled/SRR8061802_2.fastq.gz
+SRR8061776	/root/biomefm_runs/PRJNA496408/cohorts/dry-run/fastq_subsampled/SRR8061776_1.fastq.gz	/root/biomefm_runs/PRJNA496408/cohorts/dry-run/fastq_subsampled/SRR8061776_2.fastq.gz
+SRR8061756	/root/biomefm_runs/PRJNA496408/cohorts/dry-run/fastq_subsampled/SRR8061756_1.fastq.gz	/root/biomefm_runs/PRJNA496408/cohorts/dry-run/fastq_subsampled/SRR8061756_2.fastq.gz

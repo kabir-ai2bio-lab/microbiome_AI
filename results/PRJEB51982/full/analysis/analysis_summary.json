@@ -1,0 +1,53 @@
+{
+  "n_samples": 50,
+  "group_sizes": {
+    "NC": 25,
+    "AD": 25
+  },
+  "median_unassigned_fraction": 0.0649917226040779,
+  "depth_kruskal_p": 8.715537774030929e-07,
+  "alpha_kruskal_p": {
+    "shannon": 0.001006215427677906,
+    "simpson": 0.0064087496015537634,
+    "observed_genera": 0.16811146544091532
+  },
+  "permanova": {
+    "all groups": {
+      "R2": 0.08416092296021288,
+      "p": 0.001
+    },
+    "NC vs AD": {
+      "R2": 0.08416092296021288,
+      "p": 0.001
+    }
+  },
+  "da_kruskal_q_lt_0.05": 32,
+  "da_top10": [
+    "Clostridium_sensu_stricto_1",
+    "Gastranaerophilales",
+    "Bacteroides",
+    "Alistipes",
+    "Eggerthella",
+    "Holdemania",
+    "Phascolarctobacterium",
+    "Faecalitalea",
+    "Lachnoclostridium",
+    "Gemella"
+  ],
+  "ml": [
+    {
+      "task": "AD_vs_NC",
+      "model": "RandomForest",
+      "AUC_mean": 0.8336000000000001,
+      "AUC_sd": 0.13772087713923406,
+      "perm_p": 0.004975124378109453
+    },
+    {
+      "task": "AD_vs_NC",
+      "model": "LogisticL2",
+      "AUC_mean": 0.8704000000000001,
+      "AUC_sd": 0.10105364911768404,
+      "perm_p": 0.004975124378109453
+    }
+  ]
+}

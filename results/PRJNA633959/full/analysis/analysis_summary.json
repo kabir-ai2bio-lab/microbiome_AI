@@ -1,0 +1,53 @@
+{
+  "n_samples": 171,
+  "group_sizes": {
+    "NC": 71,
+    "AD": 100
+  },
+  "median_unassigned_fraction": 0.0169474562135112,
+  "depth_kruskal_p": 0.003830773596028799,
+  "alpha_kruskal_p": {
+    "shannon": 0.03355886367631567,
+    "simpson": 0.06085383697033838,
+    "observed_genera": 0.6381227230109148
+  },
+  "permanova": {
+    "all groups": {
+      "R2": 0.05021837087592336,
+      "p": 0.001
+    },
+    "NC vs AD": {
+      "R2": 0.05021837087592336,
+      "p": 0.001
+    }
+  },
+  "da_kruskal_q_lt_0.05": 54,
+  "da_top10": [
+    "Faecalibacterium",
+    "Lachnospira",
+    "Family_XIII_AD3011_group",
+    "Erysipelatoclostridium",
+    "Sellimonas",
+    "Roseburia",
+    "Akkermansia",
+    "Fusicatenibacter",
+    "Lachnospiraceae_UCG-001",
+    "Hungatella"
+  ],
+  "ml": [
+    {
+      "task": "AD_vs_NC",
+      "model": "RandomForest",
+      "AUC_mean": 0.8596142857142857,
+      "AUC_sd": 0.051741220951754034,
+      "perm_p": 0.004975124378109453
+    },
+    {
+      "task": "AD_vs_NC",
+      "model": "LogisticL2",
+      "AUC_mean": 0.8650238095238096,
+      "AUC_sd": 0.043045755595992656,
+      "perm_p": 0.004975124378109453
+    }
+  ]
+}

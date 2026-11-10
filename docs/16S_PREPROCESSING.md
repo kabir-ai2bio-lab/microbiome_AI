@@ -5,7 +5,7 @@ describes what each step does, every option, and how to troubleshoot.
 
 ```
 SRA runs ─► prefetch / fasterq-dump ─► QIIME 2 import ─► Cutadapt (primers)
-        ─► QC gate ─► [FIGARO] ─► joint DADA2 (all samples at once)
+        ─► FIGARO (truncation) ─► QC gate ─► joint DADA2 (all samples at once)
         ─► VSEARCH vs SILVA 138 NR99 ─► collapse to genus ─► CSV matrices ─► analysis report
 ```
 
@@ -15,21 +15,26 @@ SRA runs ─► prefetch / fasterq-dump ─► QIIME 2 import ─► Cutadapt (p
 
 | Step | What it does | Gate / output |
 |---|---|---|
-| `metadata` | downloads NCBI RunInfo; parses provisional labels from `LibraryName` | stops unless 93 paired runs with groups AD 33 / MCI 32 / NC 28 |
-| `select` | dry-run: 3 stratified runs incl. pilot SRR8061802; validation: 10; full: all | stops on mixed platform/strategy; `analysis_recipe.json` blocks mixing parameters |
-| `download` | `prefetch` + `fasterq-dump` + `pigz`, 4 runs in parallel; dry-run keeps the first 5,000 pairs | gzip integrity check |
+| `metadata` | downloads NCBI RunInfo (+ BioSample attributes if `biosample_attributes: true`); keeps paired runs and the `include` filter; parses labels with `labels.regex` | stops unless run and group counts equal `expected` (the paper's Table 1) |
+| `select` | dry-run: `n_samples` stratified runs (2–3, one per group); validation: 10; full: all | stops on mixed platform/strategy; `analysis_recipe.json` blocks mixing parameters |
+| `download` | `prefetch` + `fasterq-dump --split-3` (unpaired reads go to a separate file, so R1/R2 stay in step) + `pigz`, 4 runs in parallel; dry-run keeps the first 5,000 pairs; `reorient: true` swaps mates of pairs sequenced in the reverse orientation | gzip integrity check; share of swapped pairs logged |
 | `import` | QIIME 2 manifest import, `demux summarize` | `demux-summary.qzv` |
-| `cutadapt` | removes primers (806R-like on R1, 338F-like on R2), discards pairs without primers | `trimmed-summary.qzv` |
-| `qc` | per sample: primer retention ≥ 80%, ≥ 95% of pairs long enough for 250/240 truncation | stops if any sample fails |
-| `figaro` | (`--figaro`) FIGARO on raw reads normalized to one length per direction | advisory only, DADA2 settings are not changed |
-| `dada2` | **one** `denoise-paired` across all samples (trunc 250/240, maxEE 4/6) | |
+| `cutadapt` | removes the config's primers, discards pairs without primers; skipped when `primers: null` (reads start after the primer) | `trimmed-summary.qzv` |
+| `figaro` | (`--figaro`) FIGARO on raw reads normalized to one length per direction (the 1st-percentile read length; the 5th percentile when a few short-tailed runs would leave too little overlap, e.g. PRJNA734525_batch1) | with `dada2.truncation: figaro` its best choice sets DADA2 truncation (minus primer length) and maxEE; otherwise advisory |
+| `qc` | per sample: primer retention ≥ 80%, ≥ 95% of pairs long enough for the truncation lengths | stops if any sample fails |
+| `dada2` | **one** `denoise-paired` across all samples (truncation/maxEE from FIGARO or the config) | values used are in `run_provenance.json` → `dada2_used` |
 | `dada2-stats` | per-sample retention table | stops if any sample keeps < 20% |
 | `reference` | SILVA 138 SSURef NR99 via RESCRIPt, reverse-transcribed; cached | |
-| `taxonomy` | `classify-consensus-vsearch` (identity 0.90, coverage 0.80, maxaccepts 10, both strands) | |
+| `taxonomy` | `classify-consensus-vsearch` (identity 0.90, coverage 0.80, maxaccepts 10, both strands). With `asv_filter: {min_samples: n}` it first keeps only ASVs found in ≥ n samples (`*_min{n}samples` table/rep-seqs) | with `asv_filter`: `asv_filter_report.csv` (ASVs and reads kept per sample), `asv_filter.json` |
 | `genus` | collapse to level 6, write count / relative / labelled / filtered matrices | |
-| `finalize` | genus totals must equal DADA2 non-chimeric reads; compares with `expected_results`; provenance; export | |
+| `finalize` | genus totals must equal DADA2 non-chimeric reads (the reads kept by `asv_filter`, when used); compares with `expected_results`; provenance; export | |
 
-All parameters are in `configs/PRJNA496408.yaml`.
+All parameters are in `configs/<dataset>.yaml` (keys explained in the README, section 7).
+
+**Single-end datasets** (`layout: single`) use the same steps with single-end QIIME 2 types:
+`cutadapt trim-single` (optionally a 3' primer via `r1_3prime`), no FIGARO (it models read-pair overlap),
+`dada2 denoise-single` with the config's `trunc_f` (0 = keep full length, used for reads the
+submitters already merged) and optional `trim_left`.
 
 ## Options
 
@@ -43,12 +48,12 @@ run_16s.sh [--config FILE] [--mode dry-run|validation|full] [--threads N] [--unt
 | `--mode` | `dry-run` | `dry-run`: 3 samples × 5,000 pairs; `validation`: 10 samples; `full`: all |
 | `--threads` | all CPUs | used by fasterq-dump, pigz, Cutadapt, DADA2, VSEARCH, and the Python QC workers |
 | `--workdir` | `~/biomefm_runs/<project>` | downloads, QIIME artifacts, logs |
-| `--reference-dir` | `<workdir>/reference/silva138` | share one SILVA build between projects |
+| `--reference-dir` | `<workdir>/../reference/silva138` | SILVA build, shared by all projects |
 | `--export-dir` | none | copy final tables, reports and provenance here |
 | `--preflight` | | check tools, plugins, CPU, RAM and disk; run nothing |
 
 `run_end_to_end.sh` wraps these: preflight → dry run + analysis → full run → analysis. It
-reads `CONFIG`, `WORKDIR`, `EXPORT_DIR` (default `results/`), `THREADS`, `SKIP_FIGARO` and
+reads `CONFIG`, `WORKDIR`, `EXPORT_DIR` (default `outputs/`), `THREADS`, `SKIP_FIGARO` and
 `COMPARE_TO` from the environment.
 
 ## Resuming and reproducibility
@@ -73,11 +78,15 @@ reads `CONFIG`, `WORKDIR`, `EXPORT_DIR` (default `results/`), `THREADS`, `SKIP_F
 | QC gate + FIGARO | < 1 min | < 1 min |
 | DADA2 | 37 s | 8.4 min |
 | SILVA reference (once) | 5 min | cached |
-| VSEARCH taxonomy | 3 min | about 67 min |
+| VSEARCH taxonomy | 3 min | 71 min |
 | genus + finalize | 1 min | 1 min |
+| **total** | **about 12 min** | **93 min** (+ 3 min analysis) |
 
 VSEARCH is an exhaustive search of about 2,000 ASVs against about 500k SILVA sequences,
-so it dominates the run and scales almost linearly with cores.
+so it dominates the run and scales almost linearly with cores. It costs about 3.3–3.6 s per ASV
+for V3–V4 reads on 16 threads, so the dry run's seconds per ASV predict the full run well. The
+full runs of the 14 labelled datasets took about 63 h of compute on one 16-thread PC (0.4–12.5 h
+each; taxonomy was most of every run). Per-dataset times are in `results/<dataset>/full/step_timings.json`.
 
 ## Outputs
 

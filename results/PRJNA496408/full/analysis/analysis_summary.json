@@ -1,0 +1,115 @@
+{
+  "n_samples": 93,
+  "group_sizes": {
+    "NC": 28,
+    "MCI": 32,
+    "AD": 33
+  },
+  "median_unassigned_fraction": 0.0138419586223249,
+  "depth_kruskal_p": 0.04466451395002372,
+  "alpha_kruskal_p": {
+    "shannon": 0.014545972675561925,
+    "simpson": 0.0130483303655477,
+    "observed_genera": 0.08328337835643564
+  },
+  "permanova": {
+    "all groups": {
+      "R2": 0.06270806951073057,
+      "p": 0.001
+    },
+    "NC vs MCI": {
+      "R2": 0.05250878555836329,
+      "p": 0.004
+    },
+    "NC vs AD": {
+      "R2": 0.03820171440836306,
+      "p": 0.012
+    },
+    "MCI vs AD": {
+      "R2": 0.05271145791531337,
+      "p": 0.002
+    }
+  },
+  "da_kruskal_q_lt_0.05": 0,
+  "da_top10": [
+    "[Eubacterium]_hallii_group",
+    "Bacteroides",
+    "[Eubacterium]_brachy_group",
+    "Klebsiella",
+    "Alistipes",
+    "Parabacteroides",
+    "Raoultibacter",
+    "Holdemanella",
+    "Lactococcus",
+    "Ruminococcus"
+  ],
+  "ml": [
+    {
+      "task": "AD_vs_NC",
+      "model": "RandomForest",
+      "AUC_mean": 0.5562222222222222,
+      "AUC_sd": 0.1713285540095323,
+      "perm_p": 0.32338308457711445
+    },
+    {
+      "task": "AD_vs_NC",
+      "model": "LogisticL2",
+      "AUC_mean": 0.6351269841269841,
+      "AUC_sd": 0.16030746550645278,
+      "perm_p": 0.0845771144278607
+    },
+    {
+      "task": "MCI_vs_NC",
+      "model": "RandomForest",
+      "AUC_mean": 0.692968253968254,
+      "AUC_sd": 0.1336785035181314,
+      "perm_p": 0.1044776119402985
+    },
+    {
+      "task": "MCI_vs_NC",
+      "model": "LogisticL2",
+      "AUC_mean": 0.7406190476190475,
+      "AUC_sd": 0.1219024563687405,
+      "perm_p": 0.01990049751243781
+    },
+    {
+      "task": "AD_vs_MCI",
+      "model": "RandomForest",
+      "AUC_mean": 0.7361904761904762,
+      "AUC_sd": 0.1301351120654616,
+      "perm_p": 0.014925373134328358
+    },
+    {
+      "task": "AD_vs_MCI",
+      "model": "LogisticL2",
+      "AUC_mean": 0.7966666666666667,
+      "AUC_sd": 0.11016479101390934,
+      "perm_p": 0.004975124378109453
+    },
+    {
+      "task": "AD_vs_MCI_vs_NC",
+      "model": "RandomForest",
+      "AUC_mean": 0.6390764605764605,
+      "AUC_sd": 0.08304295249319818,
+      "perm_p": 0.024875621890547265
+    },
+    {
+      "task": "AD_vs_MCI_vs_NC",
+      "model": "LogisticL2",
+      "AUC_mean": 0.7151416916416916,
+      "AUC_sd": 0.07728955418201615,
+      "perm_p": 0.004975124378109453
+    }
+  ],
+  "reproduction": {
+    "reference": "/mnt/e/BiomeFM/colab_reference/genus_relative_with_provisional_labels.csv",
+    "samples_here": 93,
+    "samples_reference": 93,
+    "samples_common": 93,
+    "per_sample_pearson_min": 0.9999999999999998,
+    "per_sample_pearson_median": 1.0,
+    "max_abs_diff": 0.0,
+    "identical": true,
+    "labels_agree": true
+  }
+}

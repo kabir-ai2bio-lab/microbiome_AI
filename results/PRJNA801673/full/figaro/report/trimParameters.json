@@ -1,0 +1,38 @@
+[
+    {
+        "trimPosition": [
+            152,
+            152
+        ],
+        "maxExpectedError": [
+            1,
+            1
+        ],
+        "readRetentionPercent": 83.76,
+        "score": 83.76094788730272
+    },
+    {
+        "trimPosition": [
+            151,
+            153
+        ],
+        "maxExpectedError": [
+            1,
+            1
+        ],
+        "readRetentionPercent": 83.65,
+        "score": 83.65391862761355
+    },
+    {
+        "trimPosition": [
+            153,
+            151
+        ],
+        "maxExpectedError": [
+            1,
+            1
+        ],
+        "readRetentionPercent": 83.65,
+        "score": 83.65391862761355
+    }
+]

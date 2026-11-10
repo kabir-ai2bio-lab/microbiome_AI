@@ -1,0 +1,13 @@
+{
+  "reference": "/mnt/e/BiomeFM/colab_reference/genus_relative_with_provisional_labels.csv",
+  "samples_here": 93,
+  "samples_reference": 93,
+  "samples_common": 93,
+  "genera_only_here": [],
+  "genera_only_reference": [],
+  "per_sample_pearson_min": 0.9999999999999998,
+  "per_sample_pearson_median": 1.0,
+  "max_abs_diff": 0.0,
+  "identical": true,
+  "labels_agree": true
+}

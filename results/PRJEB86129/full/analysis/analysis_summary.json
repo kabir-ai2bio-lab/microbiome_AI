@@ -1,0 +1,53 @@
+{
+  "n_samples": 102,
+  "group_sizes": {
+    "NC": 51,
+    "AD": 51
+  },
+  "median_unassigned_fraction": 0.035554047855195295,
+  "depth_kruskal_p": 0.5227230456139579,
+  "alpha_kruskal_p": {
+    "shannon": 0.7556403037729519,
+    "simpson": 0.5671685517514169,
+    "observed_genera": 0.5334944172076974
+  },
+  "permanova": {
+    "all groups": {
+      "R2": 0.01365897080959104,
+      "p": 0.124
+    },
+    "NC vs AD": {
+      "R2": 0.01365897080959104,
+      "p": 0.127
+    }
+  },
+  "da_kruskal_q_lt_0.05": 0,
+  "da_top10": [
+    "Corynebacterium",
+    "Faecalibacterium",
+    "Dialister",
+    "UCG-005",
+    "Sutterella",
+    "Phascolarctobacterium",
+    "[Eubacterium]_siraeum_group",
+    "UCG-009",
+    "GCA-900066575",
+    "Bacteroides"
+  ],
+  "ml": [
+    {
+      "task": "AD_vs_NC",
+      "model": "RandomForest",
+      "AUC_mean": 0.5690363636363637,
+      "AUC_sd": 0.11078732660163432,
+      "perm_p": 0.5373134328358209
+    },
+    {
+      "task": "AD_vs_NC",
+      "model": "LogisticL2",
+      "AUC_mean": 0.5354000000000001,
+      "AUC_sd": 0.11723613382562634,
+      "perm_p": 0.8059701492537313
+    }
+  ]
+}

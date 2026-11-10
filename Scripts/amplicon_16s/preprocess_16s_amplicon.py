@@ -5,13 +5,13 @@
 Local port of the Colab notebook used for PRJNA496408. It turns public SRA
 paired-end 16S runs into ML-ready genus abundance matrices:
 
-    1. metadata   - NCBI RunInfo download, provisional labels from LibraryName
+    1. metadata   - NCBI RunInfo (+ BioSample attributes), include filter, provisional labels
     2. select     - choose runs for the mode (dry-run / validation / full)
     3. download   - prefetch + fasterq-dump + pigz, several runs in parallel
     4. import     - QIIME 2 manifest import + demux summary
-    5. cutadapt   - primer removal (discard untrimmed pairs)
-    6. qc         - mandatory per-sample primer retention / truncation gate
-    7. figaro     - OPTIONAL (--figaro): FIGARO truncation suggestions (advisory)
+    5. cutadapt   - primer removal (discard untrimmed pairs); skipped if primers: null
+    6. figaro     - --figaro: FIGARO; with dada2.truncation: figaro it sets DADA2 trunc/maxEE
+    7. qc         - mandatory per-sample primer retention / truncation gate
     8. dada2      - ONE joint DADA2 run across all selected samples
     9. dada2-stats- per-sample retention report + gate
    10. reference  - SILVA 138 NR99 via RESCRIPt (cached, shared across modes)
@@ -58,7 +58,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_compl
 from datetime import datetime
 from itertools import zip_longest
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -67,7 +67,7 @@ import yaml
 logger = logging.getLogger("amplicon_16s")
 
 STEPS = [
-    "metadata", "select", "download", "import", "cutadapt", "qc", "figaro",
+    "metadata", "select", "download", "import", "cutadapt", "figaro", "qc",
     "dada2", "dada2-stats", "reference", "taxonomy", "genus", "finalize",
 ]
 MODES = ("dry-run", "validation", "full")
@@ -112,6 +112,72 @@ def nonempty(path: Path, min_size: int = 1) -> bool:
     return path.exists() and path.stat().st_size >= min_size
 
 
+def assign_labels(values: pd.Series, lab: dict) -> pd.Series:
+    """Provisional labels from one metadata column.
+
+    Either `regex` (first capture group) + optional `map` (e.g. CON -> NC), or `patterns`
+    ({group: regex}; the first matching pattern wins). Unmatched values become NaN."""
+    values = values.astype("string")
+    if lab.get("patterns"):
+        out = pd.Series(pd.NA, index=values.index, dtype="object")
+        for group, rx in lab["patterns"].items():
+            hit = out.isna() & values.str.match(rx, na=False)
+            out[hit] = group
+        return out
+    return values.str.extract(lab["regex"], expand=False).replace(lab.get("map", {}))
+
+
+def apply_filters(info: pd.DataFrame, cfg: dict) -> pd.DataFrame:
+    """Optional run filters: `include` {column: value or [values]} (exact match), e.g. keep stool and drop
+    blood runs, and `include_regex` {column: regex}, e.g. one sequencing batch of a project."""
+    for col, allowed in (cfg.get("include") or {}).items():
+        allowed = [allowed] if isinstance(allowed, str) else list(allowed)
+        before = len(info)
+        info = info.loc[info[col].isin(allowed)].copy()
+        logger.info("include %s in %s: kept %d of %d runs", col, allowed, len(info), before)
+    for col, rx in (cfg.get("include_regex") or {}).items():
+        before = len(info)
+        info = info.loc[info[col].astype("string").str.match(rx, na=False)].copy()
+        logger.info("include %s ~ %s: kept %d of %d runs", col, rx, len(info), before)
+    return info
+
+
+def dataset_name(cfg: dict) -> str:
+    """Name for work/output folders: `dataset` (e.g. one sequencing batch of a project) or the BioProject."""
+    return cfg.get("dataset", cfg["project"])
+
+
+IUPAC_RE = {"A": "A", "C": "C", "G": "G", "T": "T", "R": "[AG]", "Y": "[CT]", "S": "[GC]", "W": "[AT]",
+            "K": "[GT]", "M": "[AC]", "B": "[CGT]", "D": "[AGT]", "H": "[ACT]", "V": "[ACG]", "N": "[ACGT]"}
+
+
+def primer_regex(primer: str, max_offset: int) -> "re.Pattern":
+    """Primer (IUPAC) starting within the first max_offset bases of a read."""
+    return re.compile(r"^[ACGTN]{0,%d}" % max_offset + "".join(IUPAC_RE[c] for c in primer.upper()))
+
+
+def _orient_pair(src_f: str, src_r: str, dst_f: str, dst_r: str, p1: str, p2: str, max_offset: int) -> dict:
+    """Mixed-orientation libraries: swap mates when the R2 primer is on read 1 and the R1 primer on read 2,
+    so every pair has the forward primer on R1. Pairs with neither pattern are kept for Cutadapt to judge."""
+    fwd, rev = primer_regex(p1, max_offset), primer_regex(p2, max_offset)
+    n = {"pairs": 0, "swapped": 0}
+    tmp_f, tmp_r = dst_f + ".partial", dst_r + ".partial"
+    with gzip.open(src_f, "rt") as inf, gzip.open(src_r, "rt") as inr, \
+            gzip.open(tmp_f, "wt", compresslevel=1) as outf, gzip.open(tmp_r, "wt", compresslevel=1) as outr:
+        for rec_f, rec_r in zip_longest(_iter_fastq(inf, src_f), _iter_fastq(inr, src_r)):
+            if rec_f is None or rec_r is None:
+                raise RuntimeError(f"Unpaired read counts in {src_f}")
+            n["pairs"] += 1
+            if not fwd.match(rec_f[1]) and rev.match(rec_f[1]) and fwd.match(rec_r[1]):
+                rec_f, rec_r = rec_r, rec_f
+                n["swapped"] += 1
+            for out, (h, s, p, q) in ((outf, rec_f), (outr, rec_r)):
+                out.write(f"{h}{s}\n{p}{q}\n")
+    os.replace(tmp_f, dst_f)
+    os.replace(tmp_r, dst_r)
+    return n
+
+
 # ---------------------------------------------------------------------------
 # Worker functions (module level so ProcessPoolExecutor can pickle them)
 # ---------------------------------------------------------------------------
@@ -131,47 +197,55 @@ def _iter_fastq(handle, label: str):
         yield header, seq, plus, qual
 
 
-def _qza_pair_stats(qza_path: str, member_f: str, member_r: str,
+def _qza_pair_stats(qza_path: str, member_f: str, member_r: Optional[str],
                     fmin: int, rmin: int) -> dict:
-    """Count pairs and truncation eligibility for one sample inside a .qza."""
+    """Count reads (pairs, or single reads if member_r is None) and truncation eligibility."""
     count = eligible = 0
     shortest_f = shortest_r = 10 ** 9
     with zipfile.ZipFile(qza_path) as zf:
-        with zf.open(member_f) as bf, zf.open(member_r) as br, \
-                gzip.open(bf, "rt") as sf, gzip.open(br, "rt") as sr:
-            for rec_f, rec_r in zip_longest(_iter_fastq(sf, member_f), _iter_fastq(sr, member_r)):
-                if rec_f is None or rec_r is None:
+        members = [m for m in (member_f, member_r) if m]
+        handles = [gzip.open(zf.open(m), "rt") for m in members]
+        try:
+            for recs in zip_longest(*(_iter_fastq(h, m) for h, m in zip(handles, members))):
+                if any(r is None for r in recs):
                     raise RuntimeError(f"Unpaired read counts in {member_f}")
-                lf, lr = len(rec_f[1]), len(rec_r[1])
+                lf = len(recs[0][1])
+                lr = len(recs[1][1]) if len(recs) > 1 else rmin
                 count += 1
                 shortest_f, shortest_r = min(shortest_f, lf), min(shortest_r, lr)
                 eligible += int(lf >= fmin and lr >= rmin)
+        finally:
+            for h in handles:
+                h.close()
     return {"pairs": count, "eligible": eligible,
             "eligible_fraction": eligible / count if count else 0.0,
             "min_f_len": shortest_f if count else 0,
-            "min_r_len": shortest_r if count else 0}
+            "min_r_len": (shortest_r if member_r else 0) if count else 0}
 
 
-def _subsample_pair(src_f: str, src_r: str, dst_f: str, dst_r: str, n_pairs: int) -> int:
-    """Copy the first n_pairs read pairs (dry-run only; a smoke test, not a random sample)."""
+def _subsample(srcs: List[str], dsts: List[str], n_pairs: int) -> int:
+    """Copy the first n_pairs reads / read pairs (dry-run only; a smoke test, not a random sample)."""
     written = 0
-    tmp_f, tmp_r = dst_f + ".partial", dst_r + ".partial"
-    with gzip.open(src_f, "rt") as inf, gzip.open(src_r, "rt") as inr, \
-            gzip.open(tmp_f, "wt", compresslevel=1) as outf, \
-            gzip.open(tmp_r, "wt", compresslevel=1) as outr:
-        for rec_f, rec_r in zip(_iter_fastq(inf, src_f), _iter_fastq(inr, src_r)):
-            for out, (h, s, p, q) in ((outf, rec_f), (outr, rec_r)):
+    tmps = [d + ".partial" for d in dsts]
+    ins = [gzip.open(s, "rt") for s in srcs]
+    outs = [gzip.open(t, "wt", compresslevel=1) for t in tmps]
+    try:
+        for recs in zip(*(_iter_fastq(h, s) for h, s in zip(ins, srcs))):
+            for out, (h, s, p, q) in zip(outs, recs):
                 out.write(f"{h}{s}\n{p}{q}\n")
             written += 1
             if written >= n_pairs:
                 break
-    os.replace(tmp_f, dst_f)
-    os.replace(tmp_r, dst_r)
+    finally:
+        for f in ins + outs:
+            f.close()
+    for t, d in zip(tmps, dsts):
+        os.replace(t, d)
     return written
 
 
 def _length_profile(src_f: str, src_r: str) -> dict:
-    """1st-percentile read lengths of each mate (FIGARO needs uniform lengths)."""
+    """1st- and 5th-percentile read lengths of each mate (FIGARO needs uniform lengths)."""
     lens_f, lens_r = Counter(), Counter()
     with gzip.open(src_f, "rt") as inf, gzip.open(src_r, "rt") as inr:
         for rec_f, rec_r in zip_longest(_iter_fastq(inf, src_f), _iter_fastq(inr, src_r)):
@@ -188,7 +262,8 @@ def _length_profile(src_f: str, src_r: str) -> dict:
                 return length
         return 0
     return {"pairs": sum(lens_f.values()),
-            "p01_f": percentile(lens_f, 0.01), "p01_r": percentile(lens_r, 0.01)}
+            "p01_f": percentile(lens_f, 0.01), "p01_r": percentile(lens_r, 0.01),
+            "p05_f": percentile(lens_f, 0.05), "p05_r": percentile(lens_r, 0.05)}
 
 
 def _write_uniform_pair(src_f: str, src_r: str, dst_f: str, dst_r: str,
@@ -228,11 +303,26 @@ class AmpliconPipeline:
         self.sra_dir = self.root / "sra"
         self.tmp = self.root / "tmp"
         self.meta = self.root / "metadata"
-        self.ref = reference_dir or (self.root / "reference" / f"silva{config['reference']['silva_version']}")
+        # The SILVA build is shared by every project under the same parent folder.
+        self.ref = reference_dir or (self.root.parent / "reference" / f"silva{config['reference']['silva_version']}")
         self.cohort = self.root / "cohorts" / mode
         self.logs = self.cohort / "logs"
         for d in (self.raw_fastq, self.sra_dir, self.tmp, self.meta, self.ref, self.cohort, self.logs):
             d.mkdir(parents=True, exist_ok=True)
+
+        # DADA2 truncation / maxEE: fixed in the config, or chosen by FIGARO (dada2.truncation: figaro).
+        self.layout = config.get("layout", "paired").lower()   # paired | single
+        if self.layout not in ("paired", "single"):
+            raise ValueError("layout must be 'paired' or 'single'")
+        self.single = self.layout == "single"
+        d = config["dada2"]
+        self.trunc_from_figaro = d.get("truncation", "config") == "figaro"
+        if self.single and self.trunc_from_figaro:
+            raise ValueError("FIGARO needs paired-end reads; single-end configs use dada2.truncation: config")
+        self.trunc = (d.get("trunc_f"), d.get("trunc_r"))
+        self.max_ee = (d["max_ee_f"], d["max_ee_r"])
+        if self.trunc_from_figaro and not run_figaro:
+            raise ValueError("dada2.truncation is 'figaro': pass --figaro")
 
         self.timings: Dict[str, float] = {}
         self.info: Optional[pd.DataFrame] = None
@@ -308,12 +398,20 @@ class AmpliconPipeline:
         lab = self.cfg["labels"]
         exp = self.cfg["expected"]
         info = pd.read_csv(runinfo, dtype=str)
-        info = info.loc[info["LibraryLayout"].str.upper() == "PAIRED"].copy()
-        info["Diagnosis_provisional"] = info[lab["source_column"]].str.extract(lab["regex"], expand=False)
-        if len(info) != exp["paired_runs"] or not info["Run"].is_unique \
-                or not info[lab["source_column"]].is_unique:
-            raise RuntimeError(f"Expected {exp['paired_runs']} distinct paired runs with distinct "
-                               f"{lab['source_column']}; review RunInfo")
+        info = info.loc[info["LibraryLayout"].str.upper() == self.layout.upper()].copy()
+        if self.cfg.get("biosample_attributes"):
+            # Some studies keep diagnosis / sample type only in BioSample attributes.
+            info = info.merge(self.biosample_attributes(info["BioSample"].dropna().unique()),
+                              on="BioSample", how="left", suffixes=("", "_biosample"))
+        info = apply_filters(info, self.cfg)
+        if lab.get("file"):
+            info = self.merge_label_file(info, lab)
+        info["Diagnosis_provisional"] = assign_labels(info[lab["source_column"]], lab)
+        unique_col = lab.get("unique_column", lab["source_column"])  # one run per sample
+        n_expected = exp.get("runs", exp.get("paired_runs"))
+        if len(info) != n_expected or not info["Run"].is_unique or not info[unique_col].is_unique:
+            raise RuntimeError(f"Expected {n_expected} distinct {self.layout} runs with distinct "
+                               f"{unique_col}; got {len(info)}. Review RunInfo")
         if info["Diagnosis_provisional"].isna().any():
             raise RuntimeError("Some label prefixes do not match the label regex; verify metadata manually")
         actual = info["Diagnosis_provisional"].value_counts().to_dict()
@@ -325,6 +423,59 @@ class AmpliconPipeline:
         logger.info("Runs: %d | provisional groups: %s", len(info), actual)
         logger.warning("Labels are inferred from %s; they are NOT independent clinical verification.",
                        lab["source_column"])
+
+    def merge_label_file(self, info: pd.DataFrame, lab: dict) -> pd.DataFrame:
+        """Labels supplied by the user (from the original publication) when NCBI has none.
+
+        labels.file: CSV (path relative to the repository) with the column `labels.join_column`
+        (e.g. Run or SampleName) and the column `labels.source_column` holding the diagnosis."""
+        path = Path(lab["file"])
+        if not path.is_absolute():
+            path = Path(__file__).resolve().parents[2] / path
+        if not path.exists():
+            raise FileNotFoundError(
+                f"{self.cfg['project']}: NCBI metadata has no diagnosis labels. Put them in {path} "
+                f"(columns: {lab['join_column']}, {lab['source_column']}), taken from the original study.")
+        extra = pd.read_csv(path, dtype=str)
+        key = lab["join_column"]
+        if not extra[key].is_unique:
+            raise RuntimeError(f"{path}: {key} values must be unique")
+        info = info.drop(columns=[lab["source_column"]], errors="ignore")
+        # Inner join: the file also decides which runs are used (e.g. 46 of a project's 80 runs).
+        return info.merge(extra[[key, lab["source_column"]]], on=key, how="inner", validate="one_to_one")
+
+    def biosample_attributes(self, accessions) -> pd.DataFrame:
+        """BioSample attributes (harmonized names) for the given accessions; cached in metadata/."""
+        cache = self.meta / "biosample_attributes.csv"
+        if cache.exists():
+            return pd.read_csv(cache, dtype=str)
+        import xml.etree.ElementTree as ET
+        headers = {"User-Agent": f"Academic {self.cfg['project']} reproducibility (public SRA data)"}
+        eutils = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+        rows, accessions = [], sorted(accessions)
+        for i in range(0, len(accessions), 150):
+            query = urllib.parse.urlencode({"db": "biosample", "term": " OR ".join(accessions[i:i + 150]),
+                                            "retmode": "json", "retmax": "500"})
+            with urllib.request.urlopen(urllib.request.Request(f"{eutils}/esearch.fcgi?{query}",
+                                                               headers=headers), timeout=120) as r:
+                ids = json.load(r)["esearchresult"]["idlist"]
+            query = urllib.parse.urlencode({"db": "biosample", "id": ",".join(ids), "retmode": "xml"})
+            with urllib.request.urlopen(urllib.request.Request(f"{eutils}/efetch.fcgi?{query}",
+                                                               headers=headers), timeout=240) as r:
+                root = ET.fromstring(r.read())
+            for bs in root.iter("BioSample"):
+                row = {"BioSample": bs.get("accession")}
+                title = bs.find("Description/Title")
+                row["bs_title"] = title.text if title is not None else None   # some studies put the diagnosis here
+                for a in bs.iter("Attribute"):
+                    row[a.get("harmonized_name") or a.get("attribute_name")] = a.text
+                rows.append(row)
+            time.sleep(0.4)
+        df = pd.DataFrame(rows)
+        if set(df["BioSample"]) != set(accessions):
+            raise RuntimeError(f"Fetched {len(df)} BioSamples, expected {len(accessions)}")
+        df.to_csv(cache, index=False)
+        return df
 
     # ----- step 2: select ---------------------------------------------------
 
@@ -374,6 +525,8 @@ class AmpliconPipeline:
                   "primers": self.cfg["primers"], "cutadapt": self.cfg["cutadapt"],
                   "dada2": self.cfg["dada2"], "reference": self.cfg["reference"],
                   "vsearch": self.cfg["vsearch"]}
+        # Newer options join the recipe only when set, so existing cohorts keep their fingerprint.
+        recipe.update({k: self.cfg[k] for k in ("layout", "reorient") if k in self.cfg})
         fingerprint = hashlib.sha256(json.dumps(recipe, sort_keys=True).encode()).hexdigest()
         recipe_file = self.cohort / "analysis_recipe.json"
         if recipe_file.exists():
@@ -388,14 +541,24 @@ class AmpliconPipeline:
 
     # ----- step 3: download -------------------------------------------------
 
+    def mates(self) -> tuple:
+        return (1,) if self.single else (1, 2)
+
     def raw_pair(self, run: str) -> List[Path]:
-        return [self.raw_fastq / f"{run}_{m}.fastq.gz" for m in (1, 2)]
+        """Raw FASTQs of a run: [R1, R2], or [R1] for single-end."""
+        return [self.raw_fastq / f"{run}_{m}.fastq.gz" for m in self.mates()]
+
+    def source_pair(self, run: str) -> List[Path]:
+        """Raw FASTQs, or the subsampled copies in dry-run mode."""
+        if self.mode_cfg.get("subsample_pairs"):
+            return [self.cohort / "fastq_subsampled" / f"{run}_{m}.fastq.gz" for m in self.mates()]
+        return self.raw_pair(run)
 
     def input_pair(self, run: str) -> List[Path]:
-        """FASTQs fed to QIIME: raw, or the subsampled copies in dry-run mode."""
-        if self.mode_cfg.get("subsample_pairs"):
-            return [self.cohort / "fastq_subsampled" / f"{run}_{m}.fastq.gz" for m in (1, 2)]
-        return self.raw_pair(run)
+        """FASTQs fed to QIIME / FIGARO: source_pair, re-oriented first if `reorient: true`."""
+        if self.cfg.get("reorient"):
+            return [self.cohort / "fastq_oriented" / f"{run}_{m}.fastq.gz" for m in self.mates()]
+        return self.source_pair(run)
 
     def _download_one(self, run: str, threads: int) -> str:
         paths = self.raw_pair(run)
@@ -410,10 +573,14 @@ class AmpliconPipeline:
         self.checked(["prefetch", run, "--max-size", self.cfg["download"]["max_size"],
                       "--output-directory", self.sra_dir], log=self.logs / f"{run}.prefetch.log")
         sra = self.sra_dir / run / f"{run}.sra"
-        self.checked(["fasterq-dump", "--split-files", "-e", threads, "--outdir", stage,
+        # --split-3: mates whose partner read is missing go to <run>.fastq (unused), so _1 and _2 stay in
+        # step (with --split-files some runs, e.g. PRJNA734525, get a few unpaired reads in _2).
+        self.checked(["fasterq-dump", "--split-3", "-e", threads, "--outdir", stage,
                       "--temp", tmp, sra if sra.exists() else run],
                      log=self.logs / f"{run}.fasterq.log")
-        for m in (1, 2):
+        if self.single and not (stage / f"{run}_1.fastq").exists() and (stage / f"{run}.fastq").exists():
+            os.replace(stage / f"{run}.fastq", stage / f"{run}_1.fastq")  # fasterq-dump names single reads <run>.fastq
+        for m in self.mates():
             raw = stage / f"{run}_{m}.fastq"
             if not nonempty(raw):
                 raise RuntimeError(f"Missing mate-{m} FASTQ for {run}")
@@ -443,27 +610,47 @@ class AmpliconPipeline:
         sub = self.mode_cfg.get("subsample_pairs")
         if sub:
             (self.cohort / "fastq_subsampled").mkdir(exist_ok=True)
-            todo = [r for r in runs if not all(nonempty(p, 50) for p in self.input_pair(r))]
+            todo = [r for r in runs if not all(nonempty(p, 50) for p in self.source_pair(r))]
             with ProcessPoolExecutor(max_workers=min(self.threads, max(1, len(todo)))) as pool:
-                futures = {pool.submit(_subsample_pair, *map(str, self.raw_pair(r)),
-                                       *map(str, self.input_pair(r)), sub): r for r in todo}
+                futures = {pool.submit(_subsample, list(map(str, self.raw_pair(r))),
+                                       list(map(str, self.source_pair(r))), sub): r for r in todo}
                 for fut in as_completed(futures):
                     logger.info("Subsampled %s to %d pairs", futures[fut], fut.result())
+        if self.cfg.get("reorient"):
+            if self.single or not self.cfg.get("primers"):
+                raise ValueError("reorient needs paired-end reads and both primers")
+            p = self.cfg["primers"]
+            (self.cohort / "fastq_oriented").mkdir(exist_ok=True)
+            todo = [r for r in runs if not all(nonempty(x, 50) for x in self.input_pair(r))]
+            swapped = []
+            with ProcessPoolExecutor(max_workers=min(self.threads, max(1, len(todo)))) as pool:
+                futures = {pool.submit(_orient_pair, *map(str, self.source_pair(r)), *map(str, self.input_pair(r)),
+                                       p["r1"], p["r2"], int(p.get("max_offset", 12))): r for r in todo}
+                for fut in as_completed(futures):
+                    n = fut.result()
+                    swapped.append(n["swapped"] / max(n["pairs"], 1))
+            if swapped:
+                logger.info("Re-oriented %d runs: median %.1f%% of pairs had the primers swapped",
+                            len(swapped), 100 * float(np.median(swapped)))
         logger.info("All %d FASTQ pairs ready", len(runs))
 
     # ----- step 4: import ---------------------------------------------------
 
     def step_import(self) -> None:
         manifest = self.cohort / "manifest.tsv"
-        pd.DataFrame({
-            "sample-id": self.selected_runs,
-            "forward-absolute-filepath": [str(self.input_pair(r)[0].resolve()) for r in self.selected_runs],
-            "reverse-absolute-filepath": [str(self.input_pair(r)[1].resolve()) for r in self.selected_runs],
-        }).to_csv(manifest, sep="\t", index=False)
-        demux = self.cohort / "demux-paired.qza"
+        runs = self.selected_runs
+        if self.single:
+            cols = {"absolute-filepath": [str(self.input_pair(r)[0].resolve()) for r in runs]}
+            qtype, qformat = "SampleData[SequencesWithQuality]", "SingleEndFastqManifestPhred33V2"
+        else:
+            cols = {"forward-absolute-filepath": [str(self.input_pair(r)[0].resolve()) for r in runs],
+                    "reverse-absolute-filepath": [str(self.input_pair(r)[1].resolve()) for r in runs]}
+            qtype, qformat = "SampleData[PairedEndSequencesWithQuality]", "PairedEndFastqManifestPhred33V2"
+        pd.DataFrame({"sample-id": runs, **cols}).to_csv(manifest, sep="\t", index=False)
+        demux = self.cohort / "demux-paired.qza"   # name kept for both layouts (resumability)
         self.produce([demux], lambda o: [
-            "tools", "import", "--type", "SampleData[PairedEndSequencesWithQuality]",
-            "--input-path", manifest, "--input-format", "PairedEndFastqManifestPhred33V2",
+            "tools", "import", "--type", qtype,
+            "--input-path", manifest, "--input-format", qformat,
             "--output-path", o[demux]], log=self.logs / "qiime_import.log", label="import")
         summary = self.cohort / "demux-summary.qzv"
         self.produce([summary], lambda o: [
@@ -476,10 +663,24 @@ class AmpliconPipeline:
         p, c = self.cfg["primers"], self.cfg["cutadapt"]
         demux = self.cohort / "demux-paired.qza"
         trimmed, stats = self.cohort / "demux-primer-trimmed.qza", self.cohort / "cutadapt-stats.qza"
+        if not p:
+            # Primers are not in the reads (e.g. EMP-style V4, where sequencing starts after
+            # the PCR primer): nothing to trim, so the imported reads go straight to QC/DADA2.
+            if not trimmed.exists():
+                atomic_copy(demux, trimmed)
+            logger.info("primers: null -> Cutadapt skipped; reads used as imported")
+            return
+        if self.single:
+            fronts = ["--p-front", p["r1"]] if p.get("r1") else []   # r1: null + r1_3prime = 3' trim only
+        else:
+            fronts = ["--p-front-f", p["r1"], "--p-front-r", p["r2"]]
+        if p.get("r1_3prime"):
+            # Reads that span the whole amplicon (e.g. pre-merged pairs) end in the reverse-complemented
+            # reverse primer; remove it too (times 2 = front primer and 3' primer in one pass).
+            fronts += ["--p-adapter" if self.single else "--p-adapter-f", p["r1_3prime"], "--p-times", 2]
         self.produce([trimmed, stats], lambda o: [
-            "cutadapt", "trim-paired", "--p-cores", self.threads,
-            "--i-demultiplexed-sequences", demux,
-            "--p-front-f", p["r1"], "--p-front-r", p["r2"],
+            "cutadapt", "trim-single" if self.single else "trim-paired", "--p-cores", self.threads,
+            "--i-demultiplexed-sequences", demux, *fronts,
             "--p-error-rate", c["error_rate"], "--p-overlap", c["min_overlap"],
             "--p-discard-untrimmed",
             "--o-trimmed-sequences", o[trimmed], "--o-stats", o[stats]],
@@ -503,7 +704,7 @@ class AmpliconPipeline:
                                f"got {len(mates)}")
         results = {}
         with ProcessPoolExecutor(max_workers=min(self.threads, len(mates))) as pool:
-            futures = {pool.submit(_qza_pair_stats, str(qza), mates[r][1], mates[r][2], fmin, rmin): r
+            futures = {pool.submit(_qza_pair_stats, str(qza), mates[r][1], mates[r].get(2), fmin, rmin): r
                        for r in self.selected_runs}
             for fut in as_completed(futures):
                 results[futures[fut]] = fut.result()
@@ -515,7 +716,9 @@ class AmpliconPipeline:
         if report.exists():
             qc = pd.read_csv(report)
         else:
-            trimmed = self._qza_stats(self.cohort / "demux-primer-trimmed.qza", d["trunc_f"], d["trunc_r"])
+            fmin, rmin = self.trunc
+            trimmed = self._qza_stats(self.cohort / "demux-primer-trimmed.qza", fmin or 0,
+                                      0 if self.single else (rmin or 0))
             raw = self._qza_stats(self.cohort / "demux-paired.qza")
             qc = trimmed.merge(raw[["Run", "pairs"]].rename(columns={"pairs": "raw_pairs"}), on="Run")
             qc["primer_pair_retention"] = qc["pairs"] / qc["raw_pairs"]
@@ -538,6 +741,10 @@ class AmpliconPipeline:
         if not self.run_figaro:
             logger.info("FIGARO skipped (pass --figaro to run it)")
             return
+        if self.single:
+            logger.info("FIGARO skipped: it models paired-end overlap; single-end truncation comes "
+                        "from the config (dada2.trunc_f = %s)", self.trunc[0])
+            return
         f = self.cfg["figaro"]
         base = self.cohort / "figaro"
         fig_in, fig_out = base / "uniform_input", base / "report"
@@ -554,9 +761,20 @@ class AmpliconPipeline:
             with ProcessPoolExecutor(max_workers=workers) as pool:
                 profiles = dict(zip(runs, pool.map(_length_profile,
                                                    *zip(*[map(str, self.input_pair(r)) for r in runs]))))
-            # FIGARO needs one read length per direction across the whole cohort.
-            fcut = min(p["p01_f"] for p in profiles.values())
-            rcut = min(p["p01_r"] for p in profiles.values())
+            # FIGARO needs one read length per direction across the whole cohort: the shortest
+            # 1st-percentile length keeps >= 99% of pairs in every run. If a few runs carry a tail of
+            # short reads that leaves the reads too short to span the amplicon, use the 5th percentile
+            # instead (those short pairs could not pass DADA2's truncation anyway).
+            need = int(f["amplicon_length"]) + int(f["min_overlap"])
+            for q in ("p01", "p05"):
+                fcut = min(p[f"{q}_f"] for p in profiles.values())
+                rcut = min(p[f"{q}_r"] for p in profiles.values())
+                if fcut + rcut >= need:
+                    break
+                short = {r: f"{p[q + '_f']}/{p[q + '_r']}" for r, p in profiles.items()
+                         if p[f"{q}_f"] + p[f"{q}_r"] < need}
+                logger.warning("FIGARO lengths from %s (%d/%d) are shorter than amplicon + overlap (%d); "
+                               "runs with short-read tails: %s", q, fcut, rcut, need, short)
             shutil.rmtree(fig_in, ignore_errors=True)
             fig_in.mkdir(parents=True)
             fig_out.mkdir(parents=True, exist_ok=True)
@@ -585,9 +803,29 @@ class AmpliconPipeline:
             shutil.rmtree(fig_in, ignore_errors=True)  # uncompressed copies are large
         top = pd.json_normalize(json.loads(report.read_text())[:10])
         top.to_csv(base / "figaro_top10.csv", index=False)
-        logger.info("Top FIGARO suggestions (RAW read coordinates, advisory only):\n%s", top.to_string())
-        logger.info("DADA2 still uses config trunc %s/%s (post-Cutadapt coordinates).",
-                    self.cfg["dada2"]["trunc_f"], self.cfg["dada2"]["trunc_r"])
+        logger.info("Top FIGARO suggestions (RAW read coordinates):\n%s", top.to_string())
+        if not self.trunc_from_figaro:
+            logger.info("DADA2 uses config trunc %s/%s (post-Cutadapt coordinates); FIGARO is advisory.",
+                        *self.trunc)
+            return
+        # Use FIGARO's best-scoring choice, as in the paper. FIGARO reports positions in raw reads
+        # (primer included); DADA2 here runs on primer-trimmed reads, so subtract the primer length
+        # (incl. any spacer) given to FIGARO. Its maxExpectedError suggestion is used as-is.
+        best = json.loads(report.read_text())[0]
+        tf, tr = (int(x) for x in best["trimPosition"])
+        ef, er = (int(x) for x in best["maxExpectedError"])
+        self.trunc = (tf - int(f["forward_primer_length"]), tr - int(f["reverse_primer_length"]))
+        self.max_ee = (ef, er)
+        need = self.cfg["expected_insert_upper"] + self.cfg["min_paired_overlap"]
+        if sum(self.trunc) < need:
+            raise RuntimeError(f"FIGARO truncation {self.trunc} leaves < {self.cfg['min_paired_overlap']} bp "
+                               f"overlap for a {self.cfg['expected_insert_upper']} bp insert")
+        (base / "dada2_params.json").write_text(json.dumps(
+            {"figaro_best": best, "trunc_len_f": self.trunc[0], "trunc_len_r": self.trunc[1],
+             "max_ee_f": ef, "max_ee_r": er, "coordinates": "post-Cutadapt (raw minus primer length)"},
+            indent=2))
+        logger.info("DADA2 will use FIGARO's best: trunc %d/%d, maxEE %d/%d (raw positions %d/%d, "
+                    "predicted retention %s%%)", *self.trunc, ef, er, tf, tr, best.get("readRetentionPercent"))
 
     # ----- step 8: dada2 ----------------------------------------------------
 
@@ -597,11 +835,15 @@ class AmpliconPipeline:
         dd.mkdir(exist_ok=True)
         outs = {k: dd / f"{k}.qza" for k in ("table", "rep-seqs", "stats", "transitions")}
         n_learn = self.mode_cfg.get("n_reads_learn", d["n_reads_learn"])
+        if self.single:   # trunc 0 = keep full length (e.g. reads already merged by the submitters)
+            mode = ["denoise-single", "--p-trim-left", d.get("trim_left", 0), "--p-trunc-len", self.trunc[0] or 0,
+                    "--p-max-ee", self.max_ee[0]]
+        else:
+            mode = ["denoise-paired", "--p-trim-left-f", 0, "--p-trim-left-r", 0,
+                    "--p-trunc-len-f", self.trunc[0], "--p-trunc-len-r", self.trunc[1],
+                    "--p-max-ee-f", self.max_ee[0], "--p-max-ee-r", self.max_ee[1]]
         self.produce(list(outs.values()), lambda o: [
-            "dada2", "denoise-paired", "--i-demultiplexed-seqs", self.cohort / "demux-primer-trimmed.qza",
-            "--p-trim-left-f", 0, "--p-trim-left-r", 0,
-            "--p-trunc-len-f", d["trunc_f"], "--p-trunc-len-r", d["trunc_r"],
-            "--p-max-ee-f", d["max_ee_f"], "--p-max-ee-r", d["max_ee_r"],
+            "dada2", *mode[:1], "--i-demultiplexed-seqs", self.cohort / "demux-primer-trimmed.qza", *mode[1:],
             "--p-n-reads-learn", n_learn, "--p-n-threads", self.threads,
             "--o-table", o[outs["table"]], "--o-representative-sequences", o[outs["rep-seqs"]],
             "--o-denoising-stats", o[outs["stats"]], "--o-base-transition-stats", o[outs["transitions"]]],
@@ -622,6 +864,8 @@ class AmpliconPipeline:
         body = [l for l in lines[header + 1:] if l.strip() and not l.lstrip().startswith("#")]
         stats = pd.read_csv(io.StringIO("\n".join([lines[header], *body])), sep="\t")
         stats = stats.rename(columns={stats.columns[0]: "sample-id"})
+        if "merged" not in stats:          # single-end: nothing to merge
+            stats["merged"] = stats["denoised"]
         for col in ("input", "filtered", "denoised", "merged", "non-chimeric"):
             stats[col] = pd.to_numeric(stats[col], errors="raise")
         for name, col in (("retained_pct", "non-chimeric"), ("merged_pct", "merged"), ("filtered_pct", "filtered")):
@@ -655,16 +899,77 @@ class AmpliconPipeline:
             log=self.ref / "silva_reverse_transcribe.log", label="SILVA reverse-transcribe")
         self.silva_dna, self.silva_tax = dna, tax
 
+    # ----- optional ASV prevalence filter (before taxonomy) --------------------
+
+    @property
+    def asv_min_samples(self) -> int:
+        """`asv_filter: {min_samples: n}` keeps only ASVs found in >= n samples (1 = keep all)."""
+        return int((self.cfg.get("asv_filter") or {}).get("min_samples", 1))
+
+    @property
+    def asv_suffix(self) -> str:
+        """Suffix for the artifacts made from the filtered table, so they never mix with unfiltered ones."""
+        return "" if self.asv_min_samples <= 1 else f"_min{self.asv_min_samples}samples"
+
+    def asv_inputs(self) -> Tuple[Path, Path]:
+        """DADA2 table and rep-seqs used for taxonomy and genus tables.
+
+        Used where DADA2 leaves a very large number of ASVs found in one sample only (PRJNA811324:
+        pre-merged reads with binned quality scores); naming them all would take days. The kept and
+        dropped reads per sample are written to asv_filter_report.csv.
+        """
+        dd, n, sfx = self.cohort / "dada2", self.asv_min_samples, self.asv_suffix
+        if n <= 1:
+            return dd / "table.qza", dd / "rep-seqs.qza"
+        table, seqs = dd / f"table{sfx}.qza", dd / f"rep-seqs{sfx}.qza"
+        self.produce([table], lambda o: [
+            "feature-table", "filter-features", "--i-table", dd / "table.qza",
+            "--p-min-samples", n, "--o-filtered-table", o[table]],
+            log=self.logs / f"filter_features{sfx}.log", label=f"ASV filter (>= {n} samples)")
+        self.produce([seqs], lambda o: [
+            "feature-table", "filter-seqs", "--i-data", dd / "rep-seqs.qza", "--i-table", table,
+            "--o-filtered-data", o[seqs]],
+            log=self.logs / f"filter_seqs{sfx}.log", label="ASV filter (sequences)")
+        report = self.cohort / "asv_filter_report.csv"
+        if not report.exists():
+            import biom  # part of the QIIME 2 environment
+            loaded = {}
+            for name, qza in (("all", dd / "table.qza"), ("kept", table)):
+                out = dd / f"exported_table{sfx}" / name
+                if not (out / "feature-table.biom").exists():
+                    self.qiime("tools", "export", "--input-path", qza, "--output-path", out,
+                               log=self.logs / f"export_table_{name}{sfx}.log")
+                loaded[name] = biom.load_table(str(out / "feature-table.biom"))
+            per_sample = {k: pd.Series(t.sum(axis="sample"), index=t.ids(axis="sample"))
+                          for k, t in loaded.items()}
+            rep = pd.DataFrame({"reads_all_asvs": per_sample["all"],
+                                "reads_kept_asvs": per_sample["kept"]}).fillna(0).astype("int64")
+            if set(rep.index) != set(self.selected_runs) or (rep["reads_kept_asvs"] <= 0).any():
+                raise RuntimeError("ASV filter dropped a sample entirely; lower asv_filter.min_samples")
+            rep["kept_pct"] = (100 * rep["reads_kept_asvs"] / rep["reads_all_asvs"]).round(2)
+            rep.rename_axis("sample-id").to_csv(report)
+            (self.cohort / "asv_filter.json").write_text(json.dumps({
+                "min_samples": n, "asvs_all": int(loaded["all"].shape[0]),
+                "asvs_kept": int(loaded["kept"].shape[0]),
+                "reads_kept_pct": round(100 * rep["reads_kept_asvs"].sum() / rep["reads_all_asvs"].sum(), 2),
+                "min_sample_kept_pct": float(rep["kept_pct"].min())}, indent=2))
+        info = json.loads((self.cohort / "asv_filter.json").read_text())
+        logger.info("ASV filter (>= %d samples): %d of %d ASVs kept, %.1f%% of reads (lowest sample "
+                    "%.1f%%)", n, info["asvs_kept"], info["asvs_all"], info["reads_kept_pct"],
+                    info["min_sample_kept_pct"])
+        return table, seqs
+
     # ----- step 11: taxonomy -----------------------------------------------
 
     def step_taxonomy(self) -> None:
         v = self.cfg["vsearch"]
-        td = self.cohort / "taxonomy"
+        _, query = self.asv_inputs()
+        td = self.cohort / f"taxonomy{self.asv_suffix}"
         td.mkdir(exist_ok=True)
         tax_qza, hits = td / "taxonomy.qza", td / "vsearch-hits.qza"
         self.produce([tax_qza, hits], lambda o: [
             "feature-classifier", "classify-consensus-vsearch",
-            "--i-query", self.cohort / "dada2" / "rep-seqs.qza",
+            "--i-query", query,
             "--i-reference-reads", self.silva_dna, "--i-reference-taxonomy", self.silva_tax,
             "--p-perc-identity", v["identity"], "--p-query-cov", v["query_coverage"],
             "--p-maxaccepts", v["maxaccepts"], "--p-strand", "both", "--p-threads", self.threads,
@@ -685,19 +990,20 @@ class AmpliconPipeline:
     # ----- step 12: genus ---------------------------------------------------
 
     def step_genus(self) -> None:
-        gd = self.cohort / "genus"
+        gd, sfx = self.cohort / "genus", self.asv_suffix
         gd.mkdir(exist_ok=True)
-        genus_qza = gd / "genus-table.qza"
+        table, _ = self.asv_inputs()
+        genus_qza = gd / f"genus-table{sfx}.qza"
         self.produce([genus_qza], lambda o: [
-            "taxa", "collapse", "--i-table", self.cohort / "dada2" / "table.qza",
-            "--i-taxonomy", self.cohort / "taxonomy" / "taxonomy.qza",
+            "taxa", "collapse", "--i-table", table,
+            "--i-taxonomy", self.cohort / f"taxonomy{sfx}" / "taxonomy.qza",
             "--p-level", 6, "--o-collapsed-table", o[genus_qza]],
-            log=self.logs / "collapse_genus.log", label="genus collapse")
-        biom = gd / "biom_export" / "feature-table.biom"
+            log=self.logs / f"collapse_genus{sfx}.log", label="genus collapse")
+        biom = gd / f"biom_export{sfx}" / "feature-table.biom"
         if not biom.exists():
             self.qiime("tools", "export", "--input-path", genus_qza, "--output-path", biom.parent,
-                       log=self.logs / "genus_biom_export.log")
-        biom_tsv = gd / "genus-lineages.tsv"
+                       log=self.logs / f"genus_biom_export{sfx}.log")
+        biom_tsv = gd / f"genus-lineages{sfx}.tsv"
         if not biom_tsv.exists():
             self.checked(["biom", "convert", "-i", biom, "-o", biom_tsv, "--to-tsv"],
                          log=self.logs / "biom_to_tsv.log")
@@ -771,9 +1077,17 @@ class AmpliconPipeline:
         counts, stats = self.counts, self.stats
         by_sample = counts.sum(axis=1).sort_index()
         dada = stats.set_index("sample-id")["non-chimeric"].astype("int64").sort_index()
-        if not by_sample.equals(dada):
-            diff = pd.concat([by_sample.rename("genus_total"), dada.rename("dada2_nonchimeric")], axis=1)
-            raise RuntimeError(f"Genus totals != DADA2 non-chimeric reads:\n"
+        expected, what = dada, "DADA2 non-chimeric reads"
+        asv_filter = None
+        if self.asv_min_samples > 1:  # genus totals must equal the reads in the kept ASVs
+            rep = pd.read_csv(self.cohort / "asv_filter_report.csv", index_col="sample-id")
+            if not rep["reads_all_asvs"].astype("int64").sort_index().equals(dada):
+                raise RuntimeError("ASV filter report does not match the DADA2 read counts")
+            expected, what = rep["reads_kept_asvs"].astype("int64").sort_index(), "reads in the kept ASVs"
+            asv_filter = json.loads((self.cohort / "asv_filter.json").read_text())
+        if not by_sample.equals(expected):
+            diff = pd.concat([by_sample.rename("genus_total"), expected.rename("expected")], axis=1)
+            raise RuntimeError(f"Genus totals != {what}:\n"
                                f"{diff[diff.iloc[:, 0] != diff.iloc[:, 1]].to_string()}")
         if set(counts.index) != set(self.selected_runs):
             raise RuntimeError("Final matrix rows do not match selected runs")
@@ -783,28 +1097,35 @@ class AmpliconPipeline:
         self.check_expected()
         qiime_version = subprocess.run(["qiime", "--version"], capture_output=True, text=True).stdout.strip()
         provenance = {
-            "project": self.cfg["project"], "mode": self.mode, "mode_settings": self.mode_cfg,
+            "project": self.cfg["project"], "dataset": dataset_name(self.cfg), "mode": self.mode, "mode_settings": self.mode_cfg,
             "samples": self.selected_runs, "joint_dada2_across_samples": True,
             "qiime_version": qiime_version, "cpu_threads": self.threads,
             "primers": self.cfg["primers"], "cutadapt": self.cfg["cutadapt"], "dada2": self.cfg["dada2"],
             "reference": self.cfg["reference"], "vsearch": self.cfg["vsearch"],
-            "figaro_run": self.run_figaro,
-            "clinical_labels": "INFERRED FROM NCBI LibraryName; NOT VERIFIED",
+            "figaro_run": self.run_figaro and not self.single,   # FIGARO is skipped for single-end reads
+            "dada2_used": {"trunc_len": list(self.trunc), "max_ee": list(self.max_ee),
+                           "source": "FIGARO best" if self.trunc_from_figaro else "config"},
+            "clinical_labels": (f"FROM {self.cfg['labels']['file']} (original study's supplementary table)"
+                                if self.cfg["labels"].get("file") else
+                                f"INFERRED FROM NCBI {self.cfg['labels']['source_column']}; NOT VERIFIED"),
             "fastqc": "skipped (assumed done by the original study); QIIME quality plots available",
             "warnings": self.cfg.get("warnings", []),
             "step_seconds": self.timings,
             "finished": datetime.now().isoformat(timespec="seconds"),
         }
+        if asv_filter:
+            provenance["asv_filter"] = asv_filter
         (self.cohort / "run_provenance.json").write_text(json.dumps(provenance, indent=2))
-        logger.info("QC PASSED: genus totals reconcile with DADA2 for all %d samples", len(counts))
+        logger.info("QC PASSED: genus totals reconcile with %s for all %d samples", what, len(counts))
 
         if self.export_dir:
-            dest = self.export_dir / self.cfg["project"] / self.mode
+            dest = self.export_dir / dataset_name(self.cfg) / self.mode
             files = [*(self.cohort / "genus").glob("*.csv"),
                      *(self.cohort / n for n in ("selected_runs.tsv", "manifest.tsv", "pre_dada2_qc.csv",
                                                  "dada2_per_sample_stats.csv", "asv_taxonomy_consensus.csv",
                                                  "run_provenance.json", "step_timings.json",
-                                                 "expected_results_check.json")),
+                                                 "expected_results_check.json", "asv_filter_report.csv",
+                                                 "asv_filter.json")),
                      *self.cohort.glob("*.qzv"), *(self.cohort / "figaro").glob("*.csv"),
                      *(self.cohort / "figaro" / "report").glob("*")]
             for f in files:
@@ -880,7 +1201,8 @@ def preflight(args, cfg: dict) -> bool:
 def load_config(path: Path) -> dict:
     cfg = yaml.safe_load(path.read_text())
     d = cfg["dada2"]
-    if d["trunc_f"] + d["trunc_r"] < cfg["expected_insert_upper"] + cfg["min_paired_overlap"]:
+    if cfg.get("layout", "paired") == "paired" and d.get("truncation", "config") == "config" and \
+            d["trunc_f"] + d["trunc_r"] < cfg["expected_insert_upper"] + cfg["min_paired_overlap"]:
         raise ValueError("Truncation lengths do not leave the planned read-pair overlap")
     return cfg
 
@@ -896,18 +1218,20 @@ def main() -> int:
     parser.add_argument("--workdir", type=Path, default=None,
                         help="Working directory (default: ~/biomefm_runs/<project>)")
     parser.add_argument("--reference-dir", type=Path, default=None,
-                        help="Where the SILVA artifacts are cached (default: <workdir>/reference/silvaXXX)")
+                        help="Where the SILVA artifacts are cached (default: <workdir>/../reference/silvaXXX, "
+                             "shared by all projects)")
     parser.add_argument("--threads", type=int, default=available_cpus(),
                         help=f"CPU threads for all tools (default: all visible = {available_cpus()})")
     parser.add_argument("--until", choices=STEPS, default="finalize", help="Stop after this step")
-    parser.add_argument("--figaro", action="store_true", help="Also run FIGARO (advisory truncation report)")
+    parser.add_argument("--figaro", action="store_true", help="Run FIGARO (sets DADA2 truncation when dada2.truncation is 'figaro', "
+                             "otherwise an advisory report)")
     parser.add_argument("--export-dir", type=Path, default=None,
                         help="Copy final tables/reports here, e.g. /mnt/e/BiomeFM/outputs")
     parser.add_argument("--preflight", action="store_true", help="Check tools/resources, print plan, run nothing")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
-    args.workdir = (args.workdir or Path.home() / "biomefm_runs" / cfg["project"]).expanduser()
+    args.workdir = (args.workdir or Path.home() / "biomefm_runs" / dataset_name(cfg)).expanduser()
     args.workdir.mkdir(parents=True, exist_ok=True)
 
     log_dir = args.workdir / "cohorts" / args.mode / "logs"

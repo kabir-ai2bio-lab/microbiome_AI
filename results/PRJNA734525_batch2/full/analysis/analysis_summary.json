@@ -1,0 +1,53 @@
+{
+  "n_samples": 63,
+  "group_sizes": {
+    "NC": 33,
+    "AD": 30
+  },
+  "median_unassigned_fraction": 0.0206943966998968,
+  "depth_kruskal_p": 0.0631865750699556,
+  "alpha_kruskal_p": {
+    "shannon": 0.10148771334068314,
+    "simpson": 0.01727348729157035,
+    "observed_genera": 0.7100196450518012
+  },
+  "permanova": {
+    "all groups": {
+      "R2": 0.030661861353870102,
+      "p": 0.048
+    },
+    "NC vs AD": {
+      "R2": 0.030661861353870102,
+      "p": 0.04
+    }
+  },
+  "da_kruskal_q_lt_0.05": 0,
+  "da_top10": [
+    "Caproiciproducens",
+    "UCG-002",
+    "Lachnospira",
+    "Paraprevotella",
+    "Lachnospiraceae_UCG-004",
+    "UCG-005",
+    "Lachnospiraceae_UCG-001",
+    "Fusicatenibacter",
+    "Gymnosporangium",
+    "Roseburia"
+  ],
+  "ml": [
+    {
+      "task": "AD_vs_NC",
+      "model": "RandomForest",
+      "AUC_mean": 0.663015873015873,
+      "AUC_sd": 0.13899052970234618,
+      "perm_p": 0.14427860696517414
+    },
+    {
+      "task": "AD_vs_NC",
+      "model": "LogisticL2",
+      "AUC_mean": 0.6158730158730159,
+      "AUC_sd": 0.15593571945408433,
+      "perm_p": 0.25870646766169153
+    }
+  ]
+}

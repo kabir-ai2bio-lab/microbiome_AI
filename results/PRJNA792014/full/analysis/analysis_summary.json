@@ -1,0 +1,53 @@
+{
+  "n_samples": 26,
+  "group_sizes": {
+    "NC": 13,
+    "AD": 13
+  },
+  "median_unassigned_fraction": 0.0503406196531897,
+  "depth_kruskal_p": 0.24856324821717884,
+  "alpha_kruskal_p": {
+    "shannon": 0.5553625667135696,
+    "simpson": 0.3173105078629078,
+    "observed_genera": 0.21817296786210683
+  },
+  "permanova": {
+    "all groups": {
+      "R2": 0.07459943641102493,
+      "p": 0.049
+    },
+    "NC vs AD": {
+      "R2": 0.07459943641102493,
+      "p": 0.051
+    }
+  },
+  "da_kruskal_q_lt_0.05": 0,
+  "da_top10": [
+    "[Eubacterium]_ventriosum_group",
+    "Lachnospiraceae_UCG-001",
+    "Flavonifractor",
+    "[Eubacterium]_xylanophilum_group",
+    "UBA1819",
+    "Family_XIII_UCG-001",
+    "RF39",
+    "Marvinbryantia",
+    "Bradyrhizobium",
+    "Coprococcus"
+  ],
+  "ml": [
+    {
+      "task": "AD_vs_NC",
+      "model": "RandomForest",
+      "AUC_mean": 0.7877777777777779,
+      "AUC_sd": 0.18415304960551793,
+      "perm_p": 0.05472636815920398
+    },
+    {
+      "task": "AD_vs_NC",
+      "model": "LogisticL2",
+      "AUC_mean": 0.8688888888888888,
+      "AUC_sd": 0.1698801320321457,
+      "perm_p": 0.014925373134328358
+    }
+  ]
+}

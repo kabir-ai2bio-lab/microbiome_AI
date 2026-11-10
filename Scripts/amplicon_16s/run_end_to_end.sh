@@ -10,9 +10,10 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 CONFIG="${CONFIG:-$REPO/configs/PRJNA496408.yaml}"
-PROJECT="$(awk '/^project:/{print $2}' "$CONFIG")"
+# Output folder name: `dataset:` if the config has one (e.g. one sequencing batch), else `project:`
+PROJECT="$(awk '/^dataset:/{d=$2} /^project:/{p=$2} END{print (d != "" ? d : p)}' "$CONFIG")"
 WORKDIR="${WORKDIR:-$HOME/biomefm_runs/$PROJECT}"
-EXPORT_DIR="${EXPORT_DIR:-$REPO/results}"
+EXPORT_DIR="${EXPORT_DIR:-$REPO/outputs}"
 FIGARO_FLAG="--figaro"; [[ -n "${SKIP_FIGARO:-}" ]] && FIGARO_FLAG=""
 EXTRA=(); [[ -n "${THREADS:-}" ]] && EXTRA+=(--threads "$THREADS")
 CONDA_BASE="${CONDA_BASE:-$HOME/miniforge3}"
@@ -28,9 +29,11 @@ banner() { printf '\n######## %s ########\n' "$*"; }
 banner "1/5 preflight"
 run --mode dry-run $FIGARO_FLAG --preflight
 
-banner "2/5 dry run (3 samples x 5,000 read pairs)"
+banner "2/5 dry run (2-3 samples x 5,000 read pairs)"
 run --mode dry-run $FIGARO_FLAG
-analyze --cohort-dir "$WORKDIR/cohorts/dry-run" --out-dir "$EXPORT_DIR/$PROJECT/dry-run/analysis" --n-permutations 99
+# Statistics need several samples per group; with 2-3 samples the report may not be possible.
+analyze --cohort-dir "$WORKDIR/cohorts/dry-run" --out-dir "$EXPORT_DIR/$PROJECT/dry-run/analysis" --n-permutations 99 \
+  || echo "(dry-run analysis report skipped: too few samples for the statistics; the pipeline itself passed)"
 [[ "${1:-}" == "--dry-run-only" ]] && { banner "dry run finished: $EXPORT_DIR/$PROJECT/dry-run"; exit 0; }
 
 banner "3/5 full run (all samples, one joint DADA2)"

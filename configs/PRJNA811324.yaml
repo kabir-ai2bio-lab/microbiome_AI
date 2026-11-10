@@ -1,0 +1,61 @@
+# 16S config for PRJNA811324 (Nur-Sultan, Kazakhstan; AD vs NC).
+# Dataset #10 of Wang et al. 2026 (mSystems 11:e01754-25), Table 1: 41 AD / 43 NC, region not reported.
+# Diagnosis is in the BioSample title ("Alzheimer disease" / "control").
+#
+# The SRA runs are SINGLE-end: read pairs already merged by the submitters (320-430 bp), primers removed.
+# Reads start TGGGGAATATTG..., right after 341F, so this is V3-V4. FIGARO models paired-end overlap and
+# does not apply; DADA2 runs denoise-single on the full-length merged reads (trunc 0 = no truncation).
+
+project: PRJNA811324
+layout: single
+biosample_attributes: true
+
+expected:
+  runs: 84
+  groups: {AD: 41, NC: 43}
+
+labels:
+  source_column: bs_title
+  patterns: {AD: "^Alzheimer", NC: "^control$"}
+  unique_column: SampleName
+
+selection_seed: 20261011
+
+modes:
+  dry-run: {n_samples: 2, subsample_pairs: 5000, n_reads_learn: 10000}
+  validation: {n_samples: 10}
+  full: {}
+
+primers: null                  # already removed by the submitters
+
+cutadapt: {error_rate: 0.1, min_overlap: 15}
+
+dada2:
+  truncation: config
+  trunc_f: 0                   # keep the full merged read
+  max_ee_f: 2
+  max_ee_r: 2                  # unused (single-end)
+  n_reads_learn: 100000
+
+# DADA2 leaves 65,074 ASVs here (other datasets: 2-3 thousand). The submitters merged the read pairs
+# and the reads carry only 4 binned quality values, so many sequencing errors stay as ASVs of their own:
+# 57,639 ASVs (89%) occur in a single sample and hold 5.1% of the reads. Only ASVs found in >= 2 samples
+# are named and counted (7,435 ASVs, 94.9% of the reads); naming all of them would take ~40 h.
+# Per-sample kept reads: asv_filter_report.csv. Decided 2026-11-07.
+asv_filter:
+  min_samples: 2
+
+expected_insert_upper: 430
+min_paired_overlap: 0
+
+qc: {min_cutadapt_retained: 0.80, min_trunc_eligible: 0.95, min_dada2_retained_pct: 20}
+reference: {silva_version: "138", silva_target: SSURef_NR99}
+vsearch: {identity: 0.90, query_coverage: 0.80, maxaccepts: 10}
+genus_filter: {min_samples_present: 2, min_corpus_fraction: 0.00001}
+
+download: {max_size: 20G, parallel_jobs: 4, delete_sra_after_fastq: true}
+
+warnings:
+  - Labels from the BioSample title; not clinically verified
+  - Pre-merged single-end reads, so FIGARO is not used (the paper lists this dataset as paired-end)
+  - Only ASVs found in >= 2 samples are used (asv_filter), keeping 94.9% of the reads; differs from the other datasets

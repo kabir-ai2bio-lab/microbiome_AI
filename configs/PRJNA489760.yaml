@@ -1,0 +1,81 @@
+# 16S amplicon preprocessing config for PRJNA489760 (Shanghai, China; AD / MCI / NC).
+# Dataset #3 of Wang et al. 2026 (mSystems 11:e01754-25), Table 1: 30 AD / 30 MCI / 30 NC, V3-V4, paired.
+#
+# The BioProject holds 180 runs: 90 stool ("human gut metagenome", SampleName F_*) and 90 blood
+# ("human blood metagenome", SampleName B_*) from the same participants. The paper analyzed gut
+# microbiota, so only the 90 stool runs are used, which matches Table 1 exactly (30/30/30).
+
+project: PRJNA489760
+
+include:                       # keep stool, drop the 90 blood runs
+  ScientificName: human gut metagenome
+
+expected:
+  paired_runs: 90
+  groups: {AD: 30, MCI: 30, NC: 30}
+
+labels:                        # SampleName is F_AD_<n> / F_MCI_<n> / F_NC_<n>
+  source_column: SampleName
+  regex: '^F_(AD|MCI|NC)_\d+$'
+
+selection_seed: 20261011
+
+modes:
+  dry-run:
+    n_samples: 3               # one per group
+    subsample_pairs: 5000
+    n_reads_learn: 15000
+  validation:
+    n_samples: 10
+  full: {}
+
+primers:                       # verified in raw reads, after a staggered 0-7 bp spacer
+  r1: ACTCCTACGGRAGGCAGCAG     # degenerate 338F (about half the reads carry the A variant)
+  r2: GGACTACHVGGGTWTCTAAT     # 806R
+
+cutadapt:
+  error_rate: 0.1
+  min_overlap: 15
+
+dada2:                         # post-Cutadapt coordinates (2 x 300 bp reads, >= 273 bp after trimming)
+  truncation: figaro           # truncation lengths + maxEE = FIGARO's best choice, as in the paper
+  max_ee_f: 4                  # max_ee_* are used only with 'truncation: config'
+  max_ee_r: 6
+  n_reads_learn: 100000
+
+expected_insert_upper: 429     # 338F-806R insert
+min_paired_overlap: 20
+
+qc:
+  min_cutadapt_retained: 0.80
+  min_trunc_eligible: 0.95
+  min_dada2_retained_pct: 20
+
+reference:
+  silva_version: "138"
+  silva_target: SSURef_NR99
+
+vsearch:
+  identity: 0.90
+  query_coverage: 0.80
+  maxaccepts: 10
+
+genus_filter:
+  min_samples_present: 2
+  min_corpus_fraction: 0.00001
+
+figaro:                        # primer + longest spacer (FIGARO needs a fixed length)
+  amplicon_length: 429
+  forward_primer_length: 27
+  reverse_primer_length: 27
+  min_overlap: 20
+
+download:
+  max_size: 20G
+  parallel_jobs: 4
+  delete_sra_after_fastq: true
+
+warnings:
+  - Labels inferred from NCBI SampleName (F_AD / F_MCI / F_NC); not clinically verified
+  - Blood-microbiome runs (B_*) from the same participants are excluded
+  - Single BioProject; cross-study batch correction happens after merging

@@ -1,0 +1,14 @@
+{
+  "metadata": 0.0,
+  "select": 0.0,
+  "download": 117.5,
+  "import": 121.1,
+  "cutadapt": 0.9,
+  "figaro": 17.5,
+  "qc": 3.9,
+  "dada2": 356.9,
+  "dada2-stats": 20.2,
+  "reference": 0.0,
+  "taxonomy": 1543.3,
+  "genus": 42.4
+}

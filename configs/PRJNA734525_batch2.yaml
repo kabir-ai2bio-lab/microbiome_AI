@@ -1,0 +1,49 @@
+# 16S config for PRJNA734525 (Istanbul, Turkey), sequencing batch 2 of 2 (see PRJNA734525_batch1.yaml).
+#   batch 2 (this file): SampleName ADH* 30 (AD), CK* 33 (NC) -> 2 x ~281 bp
+
+project: PRJNA734525
+dataset: PRJNA734525_batch2
+
+include_regex:
+  SampleName: '^(ADH|CK)\d'
+
+expected:
+  runs: 63
+  groups: {AD: 30, NC: 33}
+
+labels:
+  source_column: SampleName
+  patterns: {AD: '^ADH\d', NC: '^CK\d'}
+
+selection_seed: 20261011
+
+modes:
+  dry-run: {n_samples: 2, subsample_pairs: 5000, n_reads_learn: 10000}
+  validation: {n_samples: 10}
+  full: {}
+
+primers: null                  # verified: R1 starts after 341F, R2 after 805R (2 x 284/279 bp)
+
+cutadapt: {error_rate: 0.1, min_overlap: 15}
+
+dada2:
+  truncation: figaro
+  max_ee_f: 4
+  max_ee_r: 6
+  n_reads_learn: 100000
+
+expected_insert_upper: 427
+min_paired_overlap: 20
+
+qc: {min_cutadapt_retained: 0.80, min_trunc_eligible: 0.95, min_dada2_retained_pct: 20}
+reference: {silva_version: "138", silva_target: SSURef_NR99}
+vsearch: {identity: 0.90, query_coverage: 0.80, maxaccepts: 10}
+genus_filter: {min_samples_present: 2, min_corpus_fraction: 0.00001}
+
+figaro: {amplicon_length: 427, forward_primer_length: 0, reverse_primer_length: 0, min_overlap: 20}
+
+download: {max_size: 20G, parallel_jobs: 4, delete_sra_after_fastq: true}
+
+warnings:
+  - Labels inferred from SampleName prefixes (ADH = AD, CK = NC); not clinically verified
+  - Batch 2 of 2; merge with PRJNA734525_batch1 at genus level

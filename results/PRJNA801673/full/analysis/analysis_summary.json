@@ -1,0 +1,53 @@
+{
+  "n_samples": 60,
+  "group_sizes": {
+    "NC": 30,
+    "MCI": 30
+  },
+  "median_unassigned_fraction": 0.045997014705168246,
+  "depth_kruskal_p": 0.35163696900500374,
+  "alpha_kruskal_p": {
+    "shannon": 0.08909163442771896,
+    "simpson": 0.06899014012996242,
+    "observed_genera": 0.3630022136435508
+  },
+  "permanova": {
+    "all groups": {
+      "R2": 0.019384901345444447,
+      "p": 0.277
+    },
+    "NC vs MCI": {
+      "R2": 0.019384901345444447,
+      "p": 0.266
+    }
+  },
+  "da_kruskal_q_lt_0.05": 0,
+  "da_top10": [
+    "Anaerotruncus",
+    "UCG-009",
+    "Holdemania",
+    "Eisenbergiella",
+    "[Eubacterium]_fissicatena_group",
+    "DTU014",
+    "Faecalitalea",
+    "Bacteroides",
+    "Lactonifactor",
+    "Izemoplasmatales"
+  ],
+  "ml": [
+    {
+      "task": "MCI_vs_NC",
+      "model": "RandomForest",
+      "AUC_mean": 0.49888888888888894,
+      "AUC_sd": 0.1657344298405371,
+      "perm_p": 0.4925373134328358
+    },
+    {
+      "task": "MCI_vs_NC",
+      "model": "LogisticL2",
+      "AUC_mean": 0.48333333333333345,
+      "AUC_sd": 0.14834477692020767,
+      "perm_p": 0.6119402985074627
+    }
+  ]
+}

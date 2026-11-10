@@ -1,0 +1,110 @@
+[
+    {
+        "trimPosition": [
+            249,
+            243
+        ],
+        "maxExpectedError": [
+            2,
+            1
+        ],
+        "readRetentionPercent": 82.98,
+        "score": 81.97881803524768
+    },
+    {
+        "trimPosition": [
+            248,
+            244
+        ],
+        "maxExpectedError": [
+            2,
+            1
+        ],
+        "readRetentionPercent": 82.88,
+        "score": 81.8843053316284
+    },
+    {
+        "trimPosition": [
+            247,
+            245
+        ],
+        "maxExpectedError": [
+            2,
+            1
+        ],
+        "readRetentionPercent": 82.73,
+        "score": 81.73197309167732
+    },
+    {
+        "trimPosition": [
+            246,
+            246
+        ],
+        "maxExpectedError": [
+            2,
+            1
+        ],
+        "readRetentionPercent": 82.57,
+        "score": 81.57296936676488
+    },
+    {
+        "trimPosition": [
+            245,
+            247
+        ],
+        "maxExpectedError": [
+            2,
+            1
+        ],
+        "readRetentionPercent": 82.44,
+        "score": 81.44287541001835
+    },
+    {
+        "trimPosition": [
+            244,
+            248
+        ],
+        "maxExpectedError": [
+            2,
+            1
+        ],
+        "readRetentionPercent": 82.32,
+        "score": 81.32278868071386
+    },
+    {
+        "trimPosition": [
+            243,
+            249
+        ],
+        "maxExpectedError": [
+            2,
+            1
+        ],
+        "readRetentionPercent": 82.17,
+        "score": 81.16712069828209
+    },
+    {
+        "trimPosition": [
+            250,
+            242
+        ],
+        "maxExpectedError": [
+            2,
+            1
+        ],
+        "readRetentionPercent": 81.91,
+        "score": 80.90582087062879
+    },
+    {
+        "trimPosition": [
+            242,
+            250
+        ],
+        "maxExpectedError": [
+            1,
+            1
+        ],
+        "readRetentionPercent": 77.46,
+        "score": 77.46261188636238
+    }
+]

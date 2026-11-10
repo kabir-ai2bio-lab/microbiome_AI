@@ -1,0 +1,58 @@
+# 16S config for PRJNA690972 (Beijing, China; MCI vs NC).
+# Dataset #9 of Wang et al. 2026 (mSystems 11:e01754-25), Table 1: 13 MCI / 33 NC = 46, V3-V4, single.
+#
+# NCBI has no diagnosis. Labels come from the original paper, Duan et al. 2021 (Front Cell Infect
+# Microbiol 11:592842), Supplementary Table 1 (sample -> NC / SCD / aMCI), matched to SRA names
+# (G03A -> G3): 33 NC + 13 aMCI = exactly the paper's 33 NC / 13 MCI. SCD runs and the 8 runs missing
+# from that table are not used (only runs listed in labels/PRJNA690972.csv are used).
+
+project: PRJNA690972
+layout: single
+
+expected:
+  runs: 46
+  groups: {MCI: 13, NC: 33}
+
+labels:
+  file: labels/PRJNA690972.csv
+  join_column: Run
+  source_column: Diagnosis
+  unique_column: SampleName      # one run per sample
+  regex: '^(MCI|NC)$'
+
+selection_seed: 20261011
+
+modes:
+  dry-run: {n_samples: 2, subsample_pairs: 5000, n_reads_learn: 10000}
+  validation: {n_samples: 10}
+  full: {}
+
+# Verified in raw reads: merged single reads (425-445 bp) that start with the last base of 341F
+# ("G", removed by trim_left) and end with the reverse-complemented 806R (removed by Cutadapt).
+primers:
+  r1: null
+  r1_3prime: ATTAGAWACCCBDGTAGTCC   # reverse complement of 806R
+
+cutadapt: {error_rate: 0.1, min_overlap: 15}
+
+dada2:
+  truncation: config
+  trim_left: 1
+  trunc_f: 0                   # keep the full merged read
+  max_ee_f: 2
+  max_ee_r: 2                  # unused (single-end)
+  n_reads_learn: 100000
+
+expected_insert_upper: 430
+min_paired_overlap: 0
+
+qc: {min_cutadapt_retained: 0.80, min_trunc_eligible: 0.95, min_dada2_retained_pct: 20}
+reference: {silva_version: "138", silva_target: SSURef_NR99}
+vsearch: {identity: 0.90, query_coverage: 0.80, maxaccepts: 10}
+genus_filter: {min_samples_present: 2, min_corpus_fraction: 0.00001}
+
+download: {max_size: 20G, parallel_jobs: 4, delete_sra_after_fastq: true}
+
+warnings:
+  - Labels and the 46-run selection from Duan et al. 2021 Supplementary Table 1 (labels/PRJNA690972.csv)
+  - Pre-merged single-end reads, so FIGARO is not used
