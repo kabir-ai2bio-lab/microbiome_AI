@@ -1,0 +1,53 @@
+{
+  "n_samples": 99,
+  "group_sizes": {
+    "NC": 54,
+    "AD": 45
+  },
+  "median_unassigned_fraction": 0.0187133896635736,
+  "depth_kruskal_p": 1.842719438768549e-05,
+  "alpha_kruskal_p": {
+    "shannon": 0.2187815051901792,
+    "simpson": 0.27605292587885905,
+    "observed_genera": 0.1331036405873545
+  },
+  "permanova": {
+    "all groups": {
+      "R2": 0.010093469565743004,
+      "p": 0.433
+    },
+    "NC vs AD": {
+      "R2": 0.010093469565743004,
+      "p": 0.41
+    }
+  },
+  "da_kruskal_q_lt_0.05": 0,
+  "da_top10": [
+    "Holdemanella",
+    "Lactobacillus",
+    "Blautia",
+    "Muribaculaceae",
+    "Haemophilus",
+    "Romboutsia",
+    "Bilophila",
+    "Sellimonas",
+    "[Eubacterium]_nodatum_group",
+    "Acidaminococcus"
+  ],
+  "ml": [
+    {
+      "task": "AD_vs_NC",
+      "model": "RandomForest",
+      "AUC_mean": 0.5549292929292929,
+      "AUC_sd": 0.13166199036226223,
+      "perm_p": 0.472636815920398
+    },
+    {
+      "task": "AD_vs_NC",
+      "model": "LogisticL2",
+      "AUC_mean": 0.5208686868686869,
+      "AUC_sd": 0.12168436793380255,
+      "perm_p": 0.6716417910447762
+    }
+  ]
+}

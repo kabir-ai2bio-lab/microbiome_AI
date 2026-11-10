@@ -9,7 +9,8 @@ union of genera (missing = 0), then drop genera present in only one sample and g
         --results-dir outputs --out-dir outputs/merged
 
 Datasets processed in batches (e.g. PRJNA734525_batch1 / _batch2) are listed separately and keep
-their BioProject in the `Project` column.
+their BioProject in the `Project` column. When a dataset exists both as <name> and <name>_figaro,
+only the FIGARO run is used (unless --datasets names them explicitly).
 
 Outputs (in --out-dir):
     merged_genus_counts.csv            samples x genera (counts) + Dataset, Project, Diagnosis_provisional
@@ -41,6 +42,12 @@ def main() -> int:
     a = ap.parse_args()
 
     names = a.datasets or sorted(p.parent.parent.parent.name for p in a.results_dir.glob(f"*/{TABLE}"))
+    if not a.datasets:
+        # The same samples run twice (e.g. PRJNA496408 and PRJNA496408_figaro): keep the FIGARO run,
+        # which follows the paper's method.
+        for n in [n for n in names if n + "_figaro" in names]:
+            print(f"skipping {n}: {n}_figaro (the paper's FIGARO method) has the same samples")
+            names.remove(n)
     if not names:
         print(f"No finished datasets under {a.results_dir} (looked for */{TABLE})", file=sys.stderr)
         return 1
@@ -52,7 +59,7 @@ def main() -> int:
             return 1
         t = pd.read_csv(f, index_col=0)
         t.index = name + ":" + t.index.astype(str)          # run IDs stay unique across datasets
-        t.insert(0, "Project", name.split("_batch")[0])
+        t.insert(0, "Project", name.split("_")[0])           # PRJNA734525_batch1 -> PRJNA734525
         t.insert(0, "Dataset", name)
         frames.append(t)
         print(f"{name:<22} {len(t):>4} samples  {t[LABEL].value_counts().to_dict()}")

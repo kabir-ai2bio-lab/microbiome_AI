@@ -1,0 +1,115 @@
+{
+  "project": "PRJNA690972",
+  "dataset": "PRJNA690972",
+  "mode": "full",
+  "mode_settings": {},
+  "samples": [
+    "SRR13404012",
+    "SRR13404018",
+    "SRR13404019",
+    "SRR13404020",
+    "SRR13404023",
+    "SRR13404025",
+    "SRR13404026",
+    "SRR13404027",
+    "SRR13404028",
+    "SRR13404029",
+    "SRR13404032",
+    "SRR13404033",
+    "SRR13404036",
+    "SRR13404037",
+    "SRR13404038",
+    "SRR13404040",
+    "SRR13404041",
+    "SRR13404042",
+    "SRR13404045",
+    "SRR13404048",
+    "SRR13404049",
+    "SRR13404051",
+    "SRR13404052",
+    "SRR13404053",
+    "SRR13404054",
+    "SRR13404056",
+    "SRR13404057",
+    "SRR13404058",
+    "SRR13404059",
+    "SRR13404060",
+    "SRR13404063",
+    "SRR13404064",
+    "SRR13404065",
+    "SRR13404066",
+    "SRR13404067",
+    "SRR13404068",
+    "SRR13404069",
+    "SRR13404070",
+    "SRR13404071",
+    "SRR13404077",
+    "SRR13404079",
+    "SRR13404080",
+    "SRR13404081",
+    "SRR13404084",
+    "SRR13404087",
+    "SRR13404089"
+  ],
+  "joint_dada2_across_samples": true,
+  "qiime_version": "q2cli version 2026.7.0\nRun `qiime info` for more version details.",
+  "cpu_threads": 16,
+  "primers": {
+    "r1": null,
+    "r1_3prime": "ATTAGAWACCCBDGTAGTCC"
+  },
+  "cutadapt": {
+    "error_rate": 0.1,
+    "min_overlap": 15
+  },
+  "dada2": {
+    "truncation": "config",
+    "trim_left": 1,
+    "trunc_f": 0,
+    "max_ee_f": 2,
+    "max_ee_r": 2,
+    "n_reads_learn": 100000
+  },
+  "reference": {
+    "silva_version": "138",
+    "silva_target": "SSURef_NR99"
+  },
+  "vsearch": {
+    "identity": 0.9,
+    "query_coverage": 0.8,
+    "maxaccepts": 10
+  },
+  "figaro_run": false,
+  "dada2_used": {
+    "trunc_len": [
+      0,
+      null
+    ],
+    "max_ee": [
+      2,
+      2
+    ],
+    "source": "config"
+  },
+  "clinical_labels": "FROM labels/PRJNA690972.csv (original study's supplementary table)",
+  "fastqc": "skipped (assumed done by the original study); QIIME quality plots available",
+  "warnings": [
+    "Labels and the 46-run selection from Duan et al. 2021 Supplementary Table 1 (labels/PRJNA690972.csv)",
+    "Pre-merged single-end reads, so FIGARO is not used"
+  ],
+  "step_seconds": {
+    "metadata": 0.0,
+    "select": 0.0,
+    "download": 63.0,
+    "import": 86.7,
+    "cutadapt": 154.1,
+    "figaro": 0.0,
+    "qc": 2.3,
+    "dada2": 398.2,
+    "dada2-stats": 22.1,
+    "reference": 0.0,
+    "taxonomy": 5311.7,
+    "genus": 44.2
+  },
+  "finished": "2026-11-07T18:46:27"
+}

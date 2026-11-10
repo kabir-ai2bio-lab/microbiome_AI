@@ -37,6 +37,14 @@ dada2:
   max_ee_r: 2                  # unused (single-end)
   n_reads_learn: 100000
 
+# DADA2 leaves 65,074 ASVs here (other datasets: 2-3 thousand). The submitters merged the read pairs
+# and the reads carry only 4 binned quality values, so many sequencing errors stay as ASVs of their own:
+# 57,639 ASVs (89%) occur in a single sample and hold 5.1% of the reads. Only ASVs found in >= 2 samples
+# are named and counted (7,435 ASVs, 94.9% of the reads); naming all of them would take ~40 h.
+# Per-sample kept reads: asv_filter_report.csv. Decided 2026-11-07.
+asv_filter:
+  min_samples: 2
+
 expected_insert_upper: 430
 min_paired_overlap: 0
 
@@ -50,3 +58,4 @@ download: {max_size: 20G, parallel_jobs: 4, delete_sra_after_fastq: true}
 warnings:
   - Labels from the BioSample title; not clinically verified
   - Pre-merged single-end reads, so FIGARO is not used (the paper lists this dataset as paired-end)
+  - Only ASVs found in >= 2 samples are used (asv_filter), keeping 94.9% of the reads; differs from the other datasets

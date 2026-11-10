@@ -1,0 +1,53 @@
+{
+  "n_samples": 84,
+  "group_sizes": {
+    "NC": 43,
+    "AD": 41
+  },
+  "median_unassigned_fraction": 0.02432922006518635,
+  "depth_kruskal_p": 0.7170395234197535,
+  "alpha_kruskal_p": {
+    "shannon": 0.3055451276742438,
+    "simpson": 0.5882386703653659,
+    "observed_genera": 0.6162088320660544
+  },
+  "permanova": {
+    "all groups": {
+      "R2": 0.02163451808681122,
+      "p": 0.034
+    },
+    "NC vs AD": {
+      "R2": 0.02163451808681122,
+      "p": 0.043
+    }
+  },
+  "da_kruskal_q_lt_0.05": 6,
+  "da_top10": [
+    "Castellaniella",
+    "Fusicatenibacter",
+    "Dorea",
+    "Erysipelotrichaceae_UCG-003",
+    "Stenotrophomonas",
+    "Sellimonas",
+    "[Ruminococcus]_gauvreauii_group",
+    "Lacunisphaera",
+    "Halomonas",
+    "Bifidobacterium"
+  ],
+  "ml": [
+    {
+      "task": "AD_vs_NC",
+      "model": "RandomForest",
+      "AUC_mean": 0.6551041666666667,
+      "AUC_sd": 0.13014007933316543,
+      "perm_p": 0.08955223880597014
+    },
+    {
+      "task": "AD_vs_NC",
+      "model": "LogisticL2",
+      "AUC_mean": 0.6692361111111111,
+      "AUC_sd": 0.12929272522573068,
+      "perm_p": 0.208955223880597
+    }
+  ]
+}

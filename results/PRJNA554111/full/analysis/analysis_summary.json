@@ -1,0 +1,53 @@
+{
+  "n_samples": 86,
+  "group_sizes": {
+    "NC": 43,
+    "AD": 43
+  },
+  "median_unassigned_fraction": 0.011696169351311899,
+  "depth_kruskal_p": 0.583383623717481,
+  "alpha_kruskal_p": {
+    "shannon": 0.7007218958789496,
+    "simpson": 0.9277401714436259,
+    "observed_genera": 0.08090572456018848
+  },
+  "permanova": {
+    "all groups": {
+      "R2": 0.024305517975798527,
+      "p": 0.011
+    },
+    "NC vs AD": {
+      "R2": 0.024305517975798527,
+      "p": 0.009
+    }
+  },
+  "da_kruskal_q_lt_0.05": 0,
+  "da_top10": [
+    "Lachnoclostridium",
+    "Subdoligranulum",
+    "[Eubacterium]_xylanophilum_group",
+    "[Ruminococcus]_gnavus_group",
+    "Oscillibacter",
+    "[Eubacterium]_coprostanoligenes_group",
+    "[Eubacterium]_siraeum_group",
+    "Bacteroides",
+    "Tyzzerella",
+    "Christensenellaceae_R-7_group"
+  ],
+  "ml": [
+    {
+      "task": "AD_vs_NC",
+      "model": "RandomForest",
+      "AUC_mean": 0.6564197530864198,
+      "AUC_sd": 0.13024243746331185,
+      "perm_p": 0.07462686567164178
+    },
+    {
+      "task": "AD_vs_NC",
+      "model": "LogisticL2",
+      "AUC_mean": 0.6705864197530863,
+      "AUC_sd": 0.10463837412018341,
+      "perm_p": 0.029850746268656716
+    }
+  ]
+}

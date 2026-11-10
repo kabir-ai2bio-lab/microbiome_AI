@@ -1,0 +1,53 @@
+{
+  "n_samples": 46,
+  "group_sizes": {
+    "NC": 33,
+    "MCI": 13
+  },
+  "median_unassigned_fraction": 0.033742135705329995,
+  "depth_kruskal_p": 0.7604072161603739,
+  "alpha_kruskal_p": {
+    "shannon": 0.48688168014268407,
+    "simpson": 0.3113368019290089,
+    "observed_genera": 0.6515479900459582
+  },
+  "permanova": {
+    "all groups": {
+      "R2": 0.023148620231403485,
+      "p": 0.391
+    },
+    "NC vs MCI": {
+      "R2": 0.023148620231403485,
+      "p": 0.369
+    }
+  },
+  "da_kruskal_q_lt_0.05": 0,
+  "da_top10": [
+    "Coprococcus",
+    "[Ruminococcus]_torques_group",
+    "Negativibacillus",
+    "Eggerthella",
+    "Blautia",
+    "Victivallis",
+    "Subdoligranulum",
+    "Megasphaera",
+    "Desulfovibrio",
+    "[Eubacterium]_nodatum_group"
+  ],
+  "ml": [
+    {
+      "task": "MCI_vs_NC",
+      "model": "RandomForest",
+      "AUC_mean": 0.48682539682539683,
+      "AUC_sd": 0.1711315033347469,
+      "perm_p": 0.7661691542288557
+    },
+    {
+      "task": "MCI_vs_NC",
+      "model": "LogisticL2",
+      "AUC_mean": 0.5033333333333334,
+      "AUC_sd": 0.19789831736557278,
+      "perm_p": 0.6268656716417911
+    }
+  ]
+}

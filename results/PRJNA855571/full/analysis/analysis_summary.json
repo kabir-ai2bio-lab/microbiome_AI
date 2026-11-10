@@ -1,0 +1,53 @@
+{
+  "n_samples": 165,
+  "group_sizes": {
+    "NC": 40,
+    "AD": 125
+  },
+  "median_unassigned_fraction": 0.0217250610419792,
+  "depth_kruskal_p": 4.431621736132601e-14,
+  "alpha_kruskal_p": {
+    "shannon": 0.07149636799712539,
+    "simpson": 0.04269820359162758,
+    "observed_genera": 0.00034969428776870877
+  },
+  "permanova": {
+    "all groups": {
+      "R2": 0.023943455970283516,
+      "p": 0.001
+    },
+    "NC vs AD": {
+      "R2": 0.023943455970283516,
+      "p": 0.002
+    }
+  },
+  "da_kruskal_q_lt_0.05": 43,
+  "da_top10": [
+    "Rikenellaceae_RC9_gut_group",
+    "Olsenella",
+    "Enterococcus",
+    "Bilophila",
+    "Acinetobacter",
+    "Raoultella",
+    "Bacillus",
+    "Phascolarctobacterium",
+    "[Ruminococcus]_torques_group",
+    "Megasphaera"
+  ],
+  "ml": [
+    {
+      "task": "AD_vs_NC",
+      "model": "RandomForest",
+      "AUC_mean": 0.9894,
+      "AUC_sd": 0.01731011265127989,
+      "perm_p": 0.004975124378109453
+    },
+    {
+      "task": "AD_vs_NC",
+      "model": "LogisticL2",
+      "AUC_mean": 0.9936,
+      "AUC_sd": 0.01034601372510206,
+      "perm_p": 0.004975124378109453
+    }
+  ]
+}

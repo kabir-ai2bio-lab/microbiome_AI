@@ -26,7 +26,8 @@ envs/
   setup_local.sh               ← one-time install (Linux / macOS / WSL)
   windows/setup_wsl.ps1        ← Windows: creates the Linux environment, then installs
 docs/16S_PREPROCESSING.md      ← technical reference: steps, options, troubleshooting
-results/PRJNA496408/           ← finished reference results of the first dataset
+results/<dataset>/full/        ← finished results of all 14 labelled datasets (section 6)
+results/merged/                ← the 14 datasets merged into one matrix (1,635 samples)
 ```
 
 ## Quick start
@@ -43,6 +44,11 @@ Each dataset's results go to `outputs/<dataset>/`. The ML input is
 `outputs/<dataset>/full/genus/genus_relative_with_provisional_labels.csv` and the report is
 `outputs/<dataset>/full/analysis/analysis_report.html`.
 
+**Already done:** the finished results of all 14 labelled datasets are in `results/`, so ML can
+start without re-running anything: one dataset at
+`results/<dataset>/full/genus/genus_relative_with_provisional_labels.csv`, or all of them at
+`results/merged/merged_genus_relative_filtered.csv` (see [section 6](#6-results)).
+
 ---
 
 ## 1. The 15 datasets
@@ -52,7 +58,7 @@ run count and group counts against it and stops if NCBI gives anything else.
 
 | # | Dataset (config) | Samples | AD / MCI / NC | Reads | Notes |
 |---|---|---|---|---|---|
-| 1 | PRJNA496408 | 93 | 33 / 32 / 28 | V3–V4, 2×300 | **done**, results in `results/` |
+| 1 | PRJNA496408 | 93 | 33 / 32 / 28 | V3–V4, 2×300 | FIGARO run in `results/PRJNA496408_figaro/`; the Colab-identical run in `results/PRJNA496408/` |
 | 2 | PRJNA633959 | 171 | 100 / – / 71 | V3–V4, 2×300 | |
 | 3 | PRJNA489760 | 90 | 30 / 30 / 30 | V3–V4, 2×300 | stool runs only (the other 90 runs are blood) |
 | 4 | PRJNA611839 | 65 | 21 / – / 44 | V3–V4, 2×301 | ⚠ labels needed ([section 5](#5-the-3-datasets-without-labels-in-ncbi)) |
@@ -61,14 +67,14 @@ run count and group counts against it and stops if NCBI gives anything else.
 | 7 | PRJNA792014 | 26 | 13 / – / 13 | V3–V4, 2×250 | |
 | 8 | PRJNA855571 | 165 | 125 / – / 40 | V3–V4, single (merged) | gut runs only (the other 171 are oral) |
 | 9 | PRJNA690972 | 46 | – / 13 / 33 | V3–V4, single (merged) | labels from the original paper (`labels/`) |
-| 10 | PRJNA811324 | 84 | 41 / – / 43 | V3–V4, single (merged) | |
+| 10 | PRJNA811324 | 84 | 41 / – / 43 | V3–V4, single (merged) | ASVs in ≥ 2 samples only (`asv_filter`, see Caveats) |
 | 11 | PRJNA734525_batch1 + _batch2 | 62 + 63 | 47 / 27 / 51 | V3–V4, 2×232 and 2×281 | two sequencing batches, each denoised on its own |
 | 12 | PRJEB51982 | 50 | 25 / – / 25 | V4, 2×251 | |
 | 13 | PRJNA801673 | 60 | – / 30 / 30 | V4, 2×153 | labels from the original paper (`labels/`) |
 | 14 | PRJNA770746 | 99 | 45 / – / 54 | V4, 2×251 | stool runs only (the other 99 are oral) |
 | 15 | PRJEB86129 | 102 | 51 / – / 51 | V4, single 251 | stool runs only (saliva and a blank excluded) |
 
-**14 datasets run as they are.** 12 take their labels from NCBI and 2 from their original papers (`labels/`). PRJNA611839 still needs labels from its authors ([section 5](#5-the-3-datasets-without-labels-in-ncbi)).
+**14 datasets are done** (results in `results/`, summary in [section 6](#6-results)). 12 take their labels from NCBI and 2 from their original papers (`labels/`). PRJNA611839 still needs labels from its authors ([section 5](#5-the-3-datasets-without-labels-in-ncbi)).
 
 How each dataset's samples and labels were found (all from NCBI metadata, checked against Table 1):
 sample/library name prefixes (e.g. `AD12` / `CON7`), or BioSample attributes such as
@@ -88,7 +94,7 @@ its own choice in its header comment.
 **Run time.** The slowest step is taxonomy assignment (VSEARCH against SILVA), which grows
 with the number of distinct sequences (ASVs) and shrinks with more cores. Measured on 16 threads
 (Ryzen 7 5800X): PRJNA496408 (93 samples) took 93 min, of which VSEARCH was 71 min. Expect
-roughly 1–4 h per dataset on 16 threads, about two days for all 15, and 3–4× longer on a
+0.4–12.5 h per dataset on 16 threads (63 h for the 14 labelled datasets), and 3–4× longer on a
 4-core laptop. The SILVA reference is downloaded once (~5 min) and shared by all datasets.
 
 ## 3. Install
@@ -173,8 +179,8 @@ for c in PRJNA792014 PRJNA690972 PRJEB51982 PRJNA801673 PRJNA811324 PRJNA554111 
 done
 ```
 
-These are the 14 datasets that have labels, smallest first (PRJNA496408 is done already; add
-`PRJNA496408_figaro` for the FIGARO version). Add PRJNA611839 once its label file exists ([section 5](#5-the-3-datasets-without-labels-in-ncbi)).
+These, plus `PRJNA496408_figaro` (PRJNA496408 with FIGARO, as in the paper), are the 14 datasets
+that have labels, smallest first. Their finished results are already in `results/`. Add PRJNA611839 once its label file exists ([section 5](#5-the-3-datasets-without-labels-in-ncbi)).
 
 * **Long runs:** start them inside `tmux` (or `screen`) so they survive closing the terminal.
 * **Interrupted?** Run the same command again. Finished steps (downloads, QIIME
@@ -193,6 +199,8 @@ python Scripts/amplicon_16s/merge_genus_tables.py            # every finished da
 This writes `outputs/merged/`: one samples × genera table with `Dataset`, `Project` and
 `Diagnosis_provisional` columns, before and after the paper's filter (keep genera present in at
 least 2 samples and at least 0.001% of all reads). The two PRJNA734525 batches are joined here.
+When both `PRJNA496408` and `PRJNA496408_figaro` are present, only the FIGARO run is used.
+The merged result of the 14 datasets is already in `results/merged/`.
 The paper then removes study effects with MMUPHin (R package); that step is not part of this
 repository yet.
 
@@ -209,7 +217,49 @@ See [labels/README.md](labels/README.md).
 
 ## 6. Results
 
-`outputs/<dataset>/full/` (same layout as the reference results in `results/PRJNA496408/full/`):
+### The 14 finished datasets
+
+Full runs finished on 2026-11-09 (QIIME 2 2026.7, 16 threads). Every dataset passed all QC gates,
+kept every selected sample, and matches the paper's Table 1 sample and group counts.
+Each one is in `results/<dataset>/full/`.
+
+| Dataset | Samples | AD / MCI / NC | DADA2 truncation (F/R), maxEE | ASVs | Genus columns (after filter) | Median DADA2 retention |
+|---|---|---|---|---|---|---|
+| PRJNA792014 | 26 | 13 / – / 13 | FIGARO 218/223, 2/1 | 2,067 | 295 (214) | 58.8% |
+| PRJNA690972 | 46 | – / 13 / 33 | single-end, full length, 2 | 2,202 | 336 (195) | 89.1% |
+| PRJEB51982 | 50 | 25 / – / 25 | FIGARO 126/147, 1/2 | 2,849 | 217 (168) | 86.1% |
+| PRJNA801673 | 60 | – / 30 / 30 | FIGARO 133/132, 1/1 | 2,609 | 214 (168) | 77.4% |
+| PRJNA734525_batch1 | 62 | 17 / 27 / 18 | FIGARO 229/218, 3/3 | 4,357 | 217 (177) | 52.7% |
+| PRJNA734525_batch2 | 63 | 30 / – / 33 | FIGARO 235/212, 3/3 | 4,546 | 252 (184) | 71.2% |
+| PRJNA811324 | 84 | 41 / – / 43 | single-end, full length, 2 | 7,435 of 65,074 | 743 (491) | 74.5% |
+| PRJNA554111 | 86 | 43 / – / 43 | FIGARO 265/184, 2/1 | 2,964 | 288 (194) | 75.1% |
+| PRJNA489760 | 90 | 30 / 30 / 30 | FIGARO 254/195, 2/2 | 2,876 | 248 (182) | 74.7% |
+| PRJNA496408_figaro | 93 | 33 / 32 / 28 | FIGARO 250/199, 3/3 | 3,771 | 298 (187) | 69.2% |
+| PRJNA770746 | 99 | 45 / – / 54 | FIGARO 159/114, 1/1 | 4,136 | 200 (160) | 70.9% |
+| PRJEB86129 | 102 | 51 / – / 51 | single-end, 240, 2 | 3,743 | 258 (190) | 89.4% |
+| PRJNA855571 | 165 | 125 / – / 40 | single-end, full length, 2 | 9,011 | 425 (247) | 58.0% |
+| PRJNA633959 | 171 | 100 / – / 71 | FIGARO 252/197, 2/3 | 4,620 | 281 (197) | 49.0% |
+| PRJNA946900 | 438 | 225 / 38 / 175 | FIGARO 218/182, 2/1 | 9,816 | 326 (168) | 76.4% |
+| **merged** | **1,635** | **778 / 170 / 687** | | | **1,032 (348)** | |
+
+`results/PRJNA496408/full/` also keeps the earlier PRJNA496408 run with the Colab settings (250/240,
+2,002 ASVs; see [Reference results](#reference-results-prjna496408)). The merge uses the FIGARO run.
+The 1,635 merged samples are the paper's 1,700 minus the 65 of PRJNA611839 (no labels yet).
+
+**Merged matrix** (`results/merged/`, from `merge_genus_tables.py`):
+
+| File | What it is |
+|---|---|
+| `merged_genus_relative_filtered.csv` | **ML input for all datasets**: 1,635 samples × 348 genera + `Dataset`, `Project`, `Diagnosis_provisional` |
+| `merged_genus_counts_filtered.csv` | the same as counts |
+| `merged_genus_counts.csv`, `merged_genus_relative.csv` | all 1,032 genus columns, before the filter |
+| `merged_summary.csv` | samples per dataset and group |
+
+No batch correction has been applied yet. The paper uses MMUPHin for that.
+
+### Files per dataset
+
+`outputs/<dataset>/full/` (the same layout as `results/<dataset>/full/`):
 
 | File | What it is |
 |---|---|
@@ -223,6 +273,7 @@ See [labels/README.md](labels/README.md).
 | `figaro/` | FIGARO report; `dada2_params.json` = the truncation / maxEE DADA2 used |
 | `*.qzv` | QIIME 2 quality plots, viewable at <https://view.qiime2.org> |
 | `run_provenance.json` | every parameter and tool version used (`dada2_used` = truncation actually applied) |
+| `asv_filter_report.csv`, `asv_filter.json` | only PRJNA811324: ASVs and reads kept per sample by `asv_filter` |
 
 The analysis report contains:
 
@@ -284,6 +335,7 @@ Copy the config of a similar dataset (same read layout and primers) to
 | `reorient` | `true` for libraries sequenced in both orientations |
 | `dada2.truncation` | `figaro` (paired-end: FIGARO's best truncation and maxEE, as in the paper) or `config` (`trunc_f` / `trunc_r` / `max_ee_*`, needed for single-end) |
 | `figaro` | amplicon length without primers, and primer lengths including any spacer before them |
+| `asv_filter` | optional `{min_samples: n}`: name only ASVs found in ≥ n samples (for data where DADA2 keeps an unusually large number of single-sample ASVs) |
 | `expected_results` | reference numbers; a matching run logs `REPRODUCIBILITY CHECK PASSED` |
 
 Check the primers against a few raw reads (`fastq-dump -X 3000 --split-files <run>`), then
@@ -297,7 +349,16 @@ run the dry run and look at `pre_dada2_qc.csv` and `figaro/` before the full run
 * The paper does not report DADA2 or VSEARCH settings. Paired-end datasets use FIGARO's choice;
   single-end datasets (FIGARO cannot model them) use full-length reads or a quality-based
   truncation stated in their config. PRJNA496408 keeps the fixed settings of the original
-  Colab run (250/240), so its results stay identical to that run.
+  Colab run (250/240), so its results stay identical to that run; `PRJNA496408_figaro` is the
+  same samples with FIGARO, and the merged matrix uses it.
+* **PRJNA811324** (deviation from the exact method): its reads have only 4 binned quality values,
+  so DADA2 kept 65,074 ASVs (other datasets have 2,000–10,000). 89% of them occur in a single
+  sample and hold 5.1% of the reads, and naming all of them with VSEARCH would take about 40 h.
+  Only the 7,435 ASVs found in ≥ 2 samples (94.9% of reads) were assigned taxonomy
+  (`asv_filter: {min_samples: 2}`). Genera present in only one sample are removed by the paper's
+  genus filter anyway, so the filtered tables are affected very little.
+* DADA2 retention is lowest for PRJNA633959 (median 49%) and PRJNA734525_batch1 (52.7%); every
+  sample is still above the 20% QC gate.
 * Genus assignment uses a permissive 90% VSEARCH identity.
 * Cross-study batch correction (MMUPHin in the paper) is not included yet, so treat
   single-dataset p-values and AUCs as exploratory.

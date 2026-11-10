@@ -58,7 +58,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_compl
 from datetime import datetime
 from itertools import zip_longest
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -245,7 +245,7 @@ def _subsample(srcs: List[str], dsts: List[str], n_pairs: int) -> int:
 
 
 def _length_profile(src_f: str, src_r: str) -> dict:
-    """1st-percentile read lengths of each mate (FIGARO needs uniform lengths)."""
+    """1st- and 5th-percentile read lengths of each mate (FIGARO needs uniform lengths)."""
     lens_f, lens_r = Counter(), Counter()
     with gzip.open(src_f, "rt") as inf, gzip.open(src_r, "rt") as inr:
         for rec_f, rec_r in zip_longest(_iter_fastq(inf, src_f), _iter_fastq(inr, src_r)):
@@ -262,7 +262,8 @@ def _length_profile(src_f: str, src_r: str) -> dict:
                 return length
         return 0
     return {"pairs": sum(lens_f.values()),
-            "p01_f": percentile(lens_f, 0.01), "p01_r": percentile(lens_r, 0.01)}
+            "p01_f": percentile(lens_f, 0.01), "p01_r": percentile(lens_r, 0.01),
+            "p05_f": percentile(lens_f, 0.05), "p05_r": percentile(lens_r, 0.05)}
 
 
 def _write_uniform_pair(src_f: str, src_r: str, dst_f: str, dst_r: str,
@@ -572,7 +573,9 @@ class AmpliconPipeline:
         self.checked(["prefetch", run, "--max-size", self.cfg["download"]["max_size"],
                       "--output-directory", self.sra_dir], log=self.logs / f"{run}.prefetch.log")
         sra = self.sra_dir / run / f"{run}.sra"
-        self.checked(["fasterq-dump", "--split-files", "-e", threads, "--outdir", stage,
+        # --split-3: mates whose partner read is missing go to <run>.fastq (unused), so _1 and _2 stay in
+        # step (with --split-files some runs, e.g. PRJNA734525, get a few unpaired reads in _2).
+        self.checked(["fasterq-dump", "--split-3", "-e", threads, "--outdir", stage,
                       "--temp", tmp, sra if sra.exists() else run],
                      log=self.logs / f"{run}.fasterq.log")
         if self.single and not (stage / f"{run}_1.fastq").exists() and (stage / f"{run}.fastq").exists():
@@ -758,9 +761,20 @@ class AmpliconPipeline:
             with ProcessPoolExecutor(max_workers=workers) as pool:
                 profiles = dict(zip(runs, pool.map(_length_profile,
                                                    *zip(*[map(str, self.input_pair(r)) for r in runs]))))
-            # FIGARO needs one read length per direction across the whole cohort.
-            fcut = min(p["p01_f"] for p in profiles.values())
-            rcut = min(p["p01_r"] for p in profiles.values())
+            # FIGARO needs one read length per direction across the whole cohort: the shortest
+            # 1st-percentile length keeps >= 99% of pairs in every run. If a few runs carry a tail of
+            # short reads that leaves the reads too short to span the amplicon, use the 5th percentile
+            # instead (those short pairs could not pass DADA2's truncation anyway).
+            need = int(f["amplicon_length"]) + int(f["min_overlap"])
+            for q in ("p01", "p05"):
+                fcut = min(p[f"{q}_f"] for p in profiles.values())
+                rcut = min(p[f"{q}_r"] for p in profiles.values())
+                if fcut + rcut >= need:
+                    break
+                short = {r: f"{p[q + '_f']}/{p[q + '_r']}" for r, p in profiles.items()
+                         if p[f"{q}_f"] + p[f"{q}_r"] < need}
+                logger.warning("FIGARO lengths from %s (%d/%d) are shorter than amplicon + overlap (%d); "
+                               "runs with short-read tails: %s", q, fcut, rcut, need, short)
             shutil.rmtree(fig_in, ignore_errors=True)
             fig_in.mkdir(parents=True)
             fig_out.mkdir(parents=True, exist_ok=True)
@@ -885,16 +899,77 @@ class AmpliconPipeline:
             log=self.ref / "silva_reverse_transcribe.log", label="SILVA reverse-transcribe")
         self.silva_dna, self.silva_tax = dna, tax
 
+    # ----- optional ASV prevalence filter (before taxonomy) --------------------
+
+    @property
+    def asv_min_samples(self) -> int:
+        """`asv_filter: {min_samples: n}` keeps only ASVs found in >= n samples (1 = keep all)."""
+        return int((self.cfg.get("asv_filter") or {}).get("min_samples", 1))
+
+    @property
+    def asv_suffix(self) -> str:
+        """Suffix for the artifacts made from the filtered table, so they never mix with unfiltered ones."""
+        return "" if self.asv_min_samples <= 1 else f"_min{self.asv_min_samples}samples"
+
+    def asv_inputs(self) -> Tuple[Path, Path]:
+        """DADA2 table and rep-seqs used for taxonomy and genus tables.
+
+        Used where DADA2 leaves a very large number of ASVs found in one sample only (PRJNA811324:
+        pre-merged reads with binned quality scores); naming them all would take days. The kept and
+        dropped reads per sample are written to asv_filter_report.csv.
+        """
+        dd, n, sfx = self.cohort / "dada2", self.asv_min_samples, self.asv_suffix
+        if n <= 1:
+            return dd / "table.qza", dd / "rep-seqs.qza"
+        table, seqs = dd / f"table{sfx}.qza", dd / f"rep-seqs{sfx}.qza"
+        self.produce([table], lambda o: [
+            "feature-table", "filter-features", "--i-table", dd / "table.qza",
+            "--p-min-samples", n, "--o-filtered-table", o[table]],
+            log=self.logs / f"filter_features{sfx}.log", label=f"ASV filter (>= {n} samples)")
+        self.produce([seqs], lambda o: [
+            "feature-table", "filter-seqs", "--i-data", dd / "rep-seqs.qza", "--i-table", table,
+            "--o-filtered-data", o[seqs]],
+            log=self.logs / f"filter_seqs{sfx}.log", label="ASV filter (sequences)")
+        report = self.cohort / "asv_filter_report.csv"
+        if not report.exists():
+            import biom  # part of the QIIME 2 environment
+            loaded = {}
+            for name, qza in (("all", dd / "table.qza"), ("kept", table)):
+                out = dd / f"exported_table{sfx}" / name
+                if not (out / "feature-table.biom").exists():
+                    self.qiime("tools", "export", "--input-path", qza, "--output-path", out,
+                               log=self.logs / f"export_table_{name}{sfx}.log")
+                loaded[name] = biom.load_table(str(out / "feature-table.biom"))
+            per_sample = {k: pd.Series(t.sum(axis="sample"), index=t.ids(axis="sample"))
+                          for k, t in loaded.items()}
+            rep = pd.DataFrame({"reads_all_asvs": per_sample["all"],
+                                "reads_kept_asvs": per_sample["kept"]}).fillna(0).astype("int64")
+            if set(rep.index) != set(self.selected_runs) or (rep["reads_kept_asvs"] <= 0).any():
+                raise RuntimeError("ASV filter dropped a sample entirely; lower asv_filter.min_samples")
+            rep["kept_pct"] = (100 * rep["reads_kept_asvs"] / rep["reads_all_asvs"]).round(2)
+            rep.rename_axis("sample-id").to_csv(report)
+            (self.cohort / "asv_filter.json").write_text(json.dumps({
+                "min_samples": n, "asvs_all": int(loaded["all"].shape[0]),
+                "asvs_kept": int(loaded["kept"].shape[0]),
+                "reads_kept_pct": round(100 * rep["reads_kept_asvs"].sum() / rep["reads_all_asvs"].sum(), 2),
+                "min_sample_kept_pct": float(rep["kept_pct"].min())}, indent=2))
+        info = json.loads((self.cohort / "asv_filter.json").read_text())
+        logger.info("ASV filter (>= %d samples): %d of %d ASVs kept, %.1f%% of reads (lowest sample "
+                    "%.1f%%)", n, info["asvs_kept"], info["asvs_all"], info["reads_kept_pct"],
+                    info["min_sample_kept_pct"])
+        return table, seqs
+
     # ----- step 11: taxonomy -----------------------------------------------
 
     def step_taxonomy(self) -> None:
         v = self.cfg["vsearch"]
-        td = self.cohort / "taxonomy"
+        _, query = self.asv_inputs()
+        td = self.cohort / f"taxonomy{self.asv_suffix}"
         td.mkdir(exist_ok=True)
         tax_qza, hits = td / "taxonomy.qza", td / "vsearch-hits.qza"
         self.produce([tax_qza, hits], lambda o: [
             "feature-classifier", "classify-consensus-vsearch",
-            "--i-query", self.cohort / "dada2" / "rep-seqs.qza",
+            "--i-query", query,
             "--i-reference-reads", self.silva_dna, "--i-reference-taxonomy", self.silva_tax,
             "--p-perc-identity", v["identity"], "--p-query-cov", v["query_coverage"],
             "--p-maxaccepts", v["maxaccepts"], "--p-strand", "both", "--p-threads", self.threads,
@@ -915,19 +990,20 @@ class AmpliconPipeline:
     # ----- step 12: genus ---------------------------------------------------
 
     def step_genus(self) -> None:
-        gd = self.cohort / "genus"
+        gd, sfx = self.cohort / "genus", self.asv_suffix
         gd.mkdir(exist_ok=True)
-        genus_qza = gd / "genus-table.qza"
+        table, _ = self.asv_inputs()
+        genus_qza = gd / f"genus-table{sfx}.qza"
         self.produce([genus_qza], lambda o: [
-            "taxa", "collapse", "--i-table", self.cohort / "dada2" / "table.qza",
-            "--i-taxonomy", self.cohort / "taxonomy" / "taxonomy.qza",
+            "taxa", "collapse", "--i-table", table,
+            "--i-taxonomy", self.cohort / f"taxonomy{sfx}" / "taxonomy.qza",
             "--p-level", 6, "--o-collapsed-table", o[genus_qza]],
-            log=self.logs / "collapse_genus.log", label="genus collapse")
-        biom = gd / "biom_export" / "feature-table.biom"
+            log=self.logs / f"collapse_genus{sfx}.log", label="genus collapse")
+        biom = gd / f"biom_export{sfx}" / "feature-table.biom"
         if not biom.exists():
             self.qiime("tools", "export", "--input-path", genus_qza, "--output-path", biom.parent,
-                       log=self.logs / "genus_biom_export.log")
-        biom_tsv = gd / "genus-lineages.tsv"
+                       log=self.logs / f"genus_biom_export{sfx}.log")
+        biom_tsv = gd / f"genus-lineages{sfx}.tsv"
         if not biom_tsv.exists():
             self.checked(["biom", "convert", "-i", biom, "-o", biom_tsv, "--to-tsv"],
                          log=self.logs / "biom_to_tsv.log")
@@ -1001,9 +1077,17 @@ class AmpliconPipeline:
         counts, stats = self.counts, self.stats
         by_sample = counts.sum(axis=1).sort_index()
         dada = stats.set_index("sample-id")["non-chimeric"].astype("int64").sort_index()
-        if not by_sample.equals(dada):
-            diff = pd.concat([by_sample.rename("genus_total"), dada.rename("dada2_nonchimeric")], axis=1)
-            raise RuntimeError(f"Genus totals != DADA2 non-chimeric reads:\n"
+        expected, what = dada, "DADA2 non-chimeric reads"
+        asv_filter = None
+        if self.asv_min_samples > 1:  # genus totals must equal the reads in the kept ASVs
+            rep = pd.read_csv(self.cohort / "asv_filter_report.csv", index_col="sample-id")
+            if not rep["reads_all_asvs"].astype("int64").sort_index().equals(dada):
+                raise RuntimeError("ASV filter report does not match the DADA2 read counts")
+            expected, what = rep["reads_kept_asvs"].astype("int64").sort_index(), "reads in the kept ASVs"
+            asv_filter = json.loads((self.cohort / "asv_filter.json").read_text())
+        if not by_sample.equals(expected):
+            diff = pd.concat([by_sample.rename("genus_total"), expected.rename("expected")], axis=1)
+            raise RuntimeError(f"Genus totals != {what}:\n"
                                f"{diff[diff.iloc[:, 0] != diff.iloc[:, 1]].to_string()}")
         if set(counts.index) != set(self.selected_runs):
             raise RuntimeError("Final matrix rows do not match selected runs")
@@ -1018,17 +1102,21 @@ class AmpliconPipeline:
             "qiime_version": qiime_version, "cpu_threads": self.threads,
             "primers": self.cfg["primers"], "cutadapt": self.cfg["cutadapt"], "dada2": self.cfg["dada2"],
             "reference": self.cfg["reference"], "vsearch": self.cfg["vsearch"],
-            "figaro_run": self.run_figaro,
+            "figaro_run": self.run_figaro and not self.single,   # FIGARO is skipped for single-end reads
             "dada2_used": {"trunc_len": list(self.trunc), "max_ee": list(self.max_ee),
                            "source": "FIGARO best" if self.trunc_from_figaro else "config"},
-            "clinical_labels": f"INFERRED FROM NCBI {self.cfg['labels']['source_column']}; NOT VERIFIED",
+            "clinical_labels": (f"FROM {self.cfg['labels']['file']} (original study's supplementary table)"
+                                if self.cfg["labels"].get("file") else
+                                f"INFERRED FROM NCBI {self.cfg['labels']['source_column']}; NOT VERIFIED"),
             "fastqc": "skipped (assumed done by the original study); QIIME quality plots available",
             "warnings": self.cfg.get("warnings", []),
             "step_seconds": self.timings,
             "finished": datetime.now().isoformat(timespec="seconds"),
         }
+        if asv_filter:
+            provenance["asv_filter"] = asv_filter
         (self.cohort / "run_provenance.json").write_text(json.dumps(provenance, indent=2))
-        logger.info("QC PASSED: genus totals reconcile with DADA2 for all %d samples", len(counts))
+        logger.info("QC PASSED: genus totals reconcile with %s for all %d samples", what, len(counts))
 
         if self.export_dir:
             dest = self.export_dir / dataset_name(self.cfg) / self.mode
@@ -1036,7 +1124,8 @@ class AmpliconPipeline:
                      *(self.cohort / n for n in ("selected_runs.tsv", "manifest.tsv", "pre_dada2_qc.csv",
                                                  "dada2_per_sample_stats.csv", "asv_taxonomy_consensus.csv",
                                                  "run_provenance.json", "step_timings.json",
-                                                 "expected_results_check.json")),
+                                                 "expected_results_check.json", "asv_filter_report.csv",
+                                                 "asv_filter.json")),
                      *self.cohort.glob("*.qzv"), *(self.cohort / "figaro").glob("*.csv"),
                      *(self.cohort / "figaro" / "report").glob("*")]
             for f in files:

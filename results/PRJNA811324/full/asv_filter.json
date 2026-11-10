@@ -1,0 +1,7 @@
+{
+  "min_samples": 2,
+  "asvs_all": 65074,
+  "asvs_kept": 7435,
+  "reads_kept_pct": 94.9,
+  "min_sample_kept_pct": 82.1
+}

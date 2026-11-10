@@ -17,17 +17,17 @@ SRA runs ─► prefetch / fasterq-dump ─► QIIME 2 import ─► Cutadapt (p
 |---|---|---|
 | `metadata` | downloads NCBI RunInfo (+ BioSample attributes if `biosample_attributes: true`); keeps paired runs and the `include` filter; parses labels with `labels.regex` | stops unless run and group counts equal `expected` (the paper's Table 1) |
 | `select` | dry-run: `n_samples` stratified runs (2–3, one per group); validation: 10; full: all | stops on mixed platform/strategy; `analysis_recipe.json` blocks mixing parameters |
-| `download` | `prefetch` + `fasterq-dump` + `pigz`, 4 runs in parallel; dry-run keeps the first 5,000 pairs; `reorient: true` swaps mates of pairs sequenced in the reverse orientation | gzip integrity check; share of swapped pairs logged |
+| `download` | `prefetch` + `fasterq-dump --split-3` (unpaired reads go to a separate file, so R1/R2 stay in step) + `pigz`, 4 runs in parallel; dry-run keeps the first 5,000 pairs; `reorient: true` swaps mates of pairs sequenced in the reverse orientation | gzip integrity check; share of swapped pairs logged |
 | `import` | QIIME 2 manifest import, `demux summarize` | `demux-summary.qzv` |
 | `cutadapt` | removes the config's primers, discards pairs without primers; skipped when `primers: null` (reads start after the primer) | `trimmed-summary.qzv` |
-| `figaro` | (`--figaro`) FIGARO on raw reads normalized to one length per direction | with `dada2.truncation: figaro` its best choice sets DADA2 truncation (minus primer length) and maxEE; otherwise advisory |
+| `figaro` | (`--figaro`) FIGARO on raw reads normalized to one length per direction (the 1st-percentile read length; the 5th percentile when a few short-tailed runs would leave too little overlap, e.g. PRJNA734525_batch1) | with `dada2.truncation: figaro` its best choice sets DADA2 truncation (minus primer length) and maxEE; otherwise advisory |
 | `qc` | per sample: primer retention ≥ 80%, ≥ 95% of pairs long enough for the truncation lengths | stops if any sample fails |
 | `dada2` | **one** `denoise-paired` across all samples (truncation/maxEE from FIGARO or the config) | values used are in `run_provenance.json` → `dada2_used` |
 | `dada2-stats` | per-sample retention table | stops if any sample keeps < 20% |
 | `reference` | SILVA 138 SSURef NR99 via RESCRIPt, reverse-transcribed; cached | |
-| `taxonomy` | `classify-consensus-vsearch` (identity 0.90, coverage 0.80, maxaccepts 10, both strands) | |
+| `taxonomy` | `classify-consensus-vsearch` (identity 0.90, coverage 0.80, maxaccepts 10, both strands). With `asv_filter: {min_samples: n}` it first keeps only ASVs found in ≥ n samples (`*_min{n}samples` table/rep-seqs) | with `asv_filter`: `asv_filter_report.csv` (ASVs and reads kept per sample), `asv_filter.json` |
 | `genus` | collapse to level 6, write count / relative / labelled / filtered matrices | |
-| `finalize` | genus totals must equal DADA2 non-chimeric reads; compares with `expected_results`; provenance; export | |
+| `finalize` | genus totals must equal DADA2 non-chimeric reads (the reads kept by `asv_filter`, when used); compares with `expected_results`; provenance; export | |
 
 All parameters are in `configs/<dataset>.yaml` (keys explained in the README, section 7).
 
@@ -83,7 +83,10 @@ reads `CONFIG`, `WORKDIR`, `EXPORT_DIR` (default `outputs/`), `THREADS`, `SKIP_F
 | **total** | **about 12 min** | **93 min** (+ 3 min analysis) |
 
 VSEARCH is an exhaustive search of about 2,000 ASVs against about 500k SILVA sequences,
-so it dominates the run and scales almost linearly with cores.
+so it dominates the run and scales almost linearly with cores. It costs about 3.3–3.6 s per ASV
+for V3–V4 reads on 16 threads, so the dry run's seconds per ASV predict the full run well. The
+full runs of the 14 labelled datasets took about 63 h of compute on one 16-thread PC (0.4–12.5 h
+each; taxonomy was most of every run). Per-dataset times are in `results/<dataset>/full/step_timings.json`.
 
 ## Outputs
 
