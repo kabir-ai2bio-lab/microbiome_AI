@@ -74,6 +74,8 @@ MODES = ("dry-run", "validation", "full")
 GENUS_RE = r"(?:^|;\s*)g__([^;]+)"
 # QIIME 2 stores paired reads as <sample>_<barcode>_L001_R<mate>_001.fastq.gz
 QIIME_FASTQ_RE = re.compile(r"^(?P<sid>.+)_\d+_L\d{3}_R(?P<mate>[12])_001\.fastq\.gz$")
+# WSL1 file-lock failure inside QIIME's own cache (/tmp/qiime2/<user>/processes/...); safe to retry
+TRANSIENT_QIIME_ERROR = re.compile(r"PermissionError: \[Errno 13\] Permission denied: '[^']*qiime2/[^']*/processes/")
 
 
 def available_cpus() -> int:
@@ -346,8 +348,21 @@ class AmpliconPipeline:
             raise RuntimeError(f"Command failed ({proc.returncode}): {cmd[:4]}. Full log: {log}")
         logger.info("  done in %.1fs (log: %s)", time.time() - start, log.name)
 
-    def qiime(self, *args, log: Path) -> None:
-        self.checked(["qiime", *args], log=log)
+    def qiime(self, *args, log: Path, attempts: int = 3) -> None:
+        """Run a QIIME command. On WSL1, QIIME's cache rename in /tmp/qiime2 can fail at random with
+        'PermissionError: [Errno 13]' (a Windows process, e.g. the virus scanner, briefly holds a
+        file). That error is retried; any other error stops the pipeline at once. Retrying is safe:
+        outputs are written to *.partial files and renamed only on success."""
+        for attempt in range(1, attempts + 1):
+            try:
+                self.checked(["qiime", *args], log=log)
+                return
+            except RuntimeError:
+                if attempt == attempts or not TRANSIENT_QIIME_ERROR.search(log.read_text(errors="replace")):
+                    raise
+                logger.warning("Transient QIIME cache error (WSL file lock); retrying (%d/%d) in %d s",
+                               attempt + 1, attempts, 15 * attempt)
+                time.sleep(15 * attempt)
 
     def produce(self, outputs: List[Path], build_args: Callable[[Dict[Path, Path]], list],
                 log: Path, label: str) -> None:

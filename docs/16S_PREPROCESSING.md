@@ -114,6 +114,7 @@ log per command plus a pipeline log), `figaro/`, `genus/`, and `analysis/` when
 | `WSL1 is not supported` | the Windows feature is not enabled yet; run `setup_wsl.ps1` and reboot |
 | preflight: `qiime MISSING` | use `run_16s.sh` (it activates the env) or `conda activate rachis-qiime2-2026.7` |
 | pip / PyPI `NameResolutionError` inside WSL | temporary DNS issue; rerun. FIGARO's dependencies come from conda for this reason |
+| `PermissionError: [Errno 13] ... /tmp/qiime2/.../processes/` (WSL1) | a Windows process (usually the virus scanner) briefly locked a file in QIIME's cache; the pipeline retries this automatically (3 attempts). If it still fails, rerun the same command, or exclude the WSL folder from real-time scanning |
 | `Partial ... outputs` | a previous run left some outputs of a multi-output step; delete the listed files |
 | QC gate fails | inspect `pre_dada2_qc.csv`; check primers/orientation, don't just lower thresholds |
 | VSEARCH killed (out of memory) | raise WSL2 `memory`, or use `--threads` to lower memory use |
