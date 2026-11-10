@@ -29,6 +29,14 @@ modes:
 
 # Verified in raw reads: merged single reads (425-445 bp) that start with the last base of 341F
 # ("G", removed by trim_left) and end with the reverse-complemented 806R (removed by Cutadapt).
+# Reference numbers of the committed results. A run that matches logs
+# REPRODUCIBILITY CHECK PASSED (the pipeline is deterministic for identical input).
+expected_results:
+  full:                        # 2026-11-09 run, QIIME 2 2026.7, single-end, config truncation; = results/PRJNA690972/full
+    asvs: 2202
+    total_input: 2389141
+    total_non_chimeric: 2161324
+
 primers:
   r1: null
   r1_3prime: ATTAGAWACCCBDGTAGTCC   # reverse complement of 806R

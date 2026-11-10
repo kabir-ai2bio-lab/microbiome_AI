@@ -32,6 +32,10 @@ expected_results:
   dry-run:
     asvs: 95
     non_chimeric: {SRR11825939: 2653, SRR11825990: 1981}
+  full:                        # 2026-11-09 run, QIIME 2 2026.7, FIGARO trunc 252/197, maxEE 2/3; = results/PRJNA633959/full
+    asvs: 4620
+    total_input: 8345750
+    total_non_chimeric: 4170317
 
 cutadapt:
   error_rate: 0.1

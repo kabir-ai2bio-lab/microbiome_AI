@@ -28,6 +28,14 @@ modes:
   full: {}
 
 # Verified in raw reads: single 251 bp reads starting TACG... (EMP V4, after 515F). No primers.
+# Reference numbers of the committed results. A run that matches logs
+# REPRODUCIBILITY CHECK PASSED (the pipeline is deterministic for identical input).
+expected_results:
+  full:                        # 2026-11-09 run, QIIME 2 2026.7, single-end, config truncation; = results/PRJEB86129/full
+    asvs: 3743
+    total_input: 4047342
+    total_non_chimeric: 3454350
+
 primers: null
 
 cutadapt: {error_rate: 0.1, min_overlap: 15}

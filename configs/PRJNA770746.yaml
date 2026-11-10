@@ -36,6 +36,14 @@ modes:
 
 # Verified in raw reads: R1 starts at TACG... and R2 at CCTGTTTG..., i.e. right after the 515F / 806R
 # primers (EMP V4 protocol). The primers are not part of the reads, so Cutadapt is skipped.
+# Reference numbers of the committed results. A run that matches logs
+# REPRODUCIBILITY CHECK PASSED (the pipeline is deterministic for identical input).
+expected_results:
+  full:                        # 2026-11-09 run, QIIME 2 2026.7, FIGARO trunc 159/114, maxEE 1/1; = results/PRJNA770746/full
+    asvs: 4136
+    total_input: 3074608
+    total_non_chimeric: 2202921
+
 primers: null
 
 cutadapt:

@@ -22,6 +22,14 @@ modes:
   full: {}
 
 # Verified in raw reads (2 x 250): R1 = sample barcode (7-10 bp) + 338F; R2 = 806R at position 0.
+# Reference numbers of the committed results. A run that matches logs
+# REPRODUCIBILITY CHECK PASSED (the pipeline is deterministic for identical input).
+expected_results:
+  full:                        # 2026-11-09 run, QIIME 2 2026.7, FIGARO trunc 218/223, maxEE 2/1; = results/PRJNA792014/full
+    asvs: 2067
+    total_input: 994192
+    total_non_chimeric: 561321
+
 primers:
   r1: ACTCCTACGGGAGGCAGCAG     # 338F
   r2: GGACTACHVGGGTWTCTAAT     # 806R

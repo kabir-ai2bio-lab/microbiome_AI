@@ -30,6 +30,14 @@ modes:
 
 # Verified in raw reads: R1 starts TGGGGAATATTG... (after 341F), R2 TGTTTGCTCC... (after 805R).
 # Primers were already removed, so Cutadapt is skipped.
+# Reference numbers of the committed results. A run that matches logs
+# REPRODUCIBILITY CHECK PASSED (the pipeline is deterministic for identical input).
+expected_results:
+  full:                        # 2026-11-09 run, QIIME 2 2026.7, FIGARO trunc 229/218, maxEE 3/3; = results/PRJNA734525_batch1/full
+    asvs: 4357
+    total_input: 7677222
+    total_non_chimeric: 4052454
+
 primers: null
 
 cutadapt: {error_rate: 0.1, min_overlap: 15}

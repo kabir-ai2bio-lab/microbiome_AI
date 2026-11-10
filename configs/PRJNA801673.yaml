@@ -25,6 +25,14 @@ modes:
   full: {}
 
 # Verified in raw reads (2 x 153): 515F on R1 and 806R on R2 at position 0.
+# Reference numbers of the committed results. A run that matches logs
+# REPRODUCIBILITY CHECK PASSED (the pipeline is deterministic for identical input).
+expected_results:
+  full:                        # 2026-11-09 run, QIIME 2 2026.7, FIGARO trunc 133/132, maxEE 1/1; = results/PRJNA801673/full
+    asvs: 2609
+    total_input: 3878947
+    total_non_chimeric: 2993806
+
 primers:
   r1: GTGYCAGCMGCCGCGGTAA      # 515F
   r2: GGACTACHVGGGTWTCTAAT     # 806R

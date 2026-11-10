@@ -26,6 +26,14 @@ modes:
   validation: {n_samples: 10}
   full: {}
 
+# Reference numbers of the committed results. A run that matches logs
+# REPRODUCIBILITY CHECK PASSED (the pipeline is deterministic for identical input).
+expected_results:
+  full:                        # 2026-11-09 run, QIIME 2 2026.7, single-end, config truncation; = results/PRJNA811324/full
+    asvs: 7435
+    total_input: 9467007
+    total_non_chimeric: 7142729
+
 primers: null                  # already removed by the submitters
 
 cutadapt: {error_rate: 0.1, min_overlap: 15}

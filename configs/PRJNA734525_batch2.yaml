@@ -22,6 +22,14 @@ modes:
   validation: {n_samples: 10}
   full: {}
 
+# Reference numbers of the committed results. A run that matches logs
+# REPRODUCIBILITY CHECK PASSED (the pipeline is deterministic for identical input).
+expected_results:
+  full:                        # 2026-11-09 run, QIIME 2 2026.7, FIGARO trunc 235/212, maxEE 3/3; = results/PRJNA734525_batch2/full
+    asvs: 4546
+    total_input: 5567115
+    total_non_chimeric: 3952800
+
 primers: null                  # verified: R1 starts after 341F, R2 after 805R (2 x 284/279 bp)
 
 cutadapt: {error_rate: 0.1, min_overlap: 15}

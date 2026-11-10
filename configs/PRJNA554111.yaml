@@ -28,6 +28,10 @@ expected_results:
   dry-run:
     asvs: 146
     non_chimeric: {SRR9671477: 4045, SRR9671520: 3403}
+  full:                        # 2026-11-09 run, QIIME 2 2026.7, FIGARO trunc 265/184, maxEE 2/1; = results/PRJNA554111/full
+    asvs: 2964
+    total_input: 3258063
+    total_non_chimeric: 2463434
 
 primers:                       # verified in raw reads: 338F on R1, 806R on R2, each after a 6 bp spacer
   r1: ACTCCTACGGGAGGCAGCAG     # 338F

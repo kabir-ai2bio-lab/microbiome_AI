@@ -20,6 +20,7 @@ Scripts/amplicon_16s/
   preprocess_16s_amplicon.py   ← SRA → QIIME 2 / DADA2 / VSEARCH-SILVA → genus tables
   analyze_genus.py             ← diversity, PERMANOVA, differential abundance, ML baseline → HTML report
   merge_genus_tables.py        ← combine finished datasets into one matrix (paper's genus filter)
+  compare_with_results.py      ← check that your runs are identical to the committed results/
 configs/                       ← one YAML per dataset (16 files: PRJNA734525 has two sequencing batches)
 labels/                        ← diagnosis labels you supply for the 3 datasets without labels in NCBI
 envs/
@@ -48,6 +49,74 @@ Each dataset's results go to `outputs/<dataset>/`. The ML input is
 start without re-running anything: one dataset at
 `results/<dataset>/full/genus/genus_relative_with_provisional_labels.csv`, or all of them at
 `results/merged/merged_genus_relative_filtered.csv` (see [section 6](#6-results)).
+
+---
+
+## Reproduce our results, step by step
+
+The pipeline is deterministic. With the same software (QIIME 2 2026.7, installed by step 2) and
+the same public data, every number comes out **identical** to `results/`, whatever the number
+of CPU cores. The PRJNA496408 results here are identical to an earlier run on Google Colab.
+
+**1. Get the code.** Linux / macOS / WSL: `git clone https://github.com/kabir-ai2bio-lab/microbiome_AI.git`.
+On Windows without git, use **Code → Download ZIP** on GitHub and unzip it.
+
+**2. Install (once, 20–60 min).** Linux / macOS:
+
+```bash
+cd microbiome_AI
+bash envs/setup_local.sh
+```
+
+On Windows, run `powershell -ExecutionPolicy Bypass -File envs\windows\setup_wsl.ps1` in PowerShell
+from the unzipped folder, then open Linux with `wsl -d BiomeFM -u root` and `cd ~/microbiome_AI`
+([details](#windows)). Every command below runs in that Linux shell.
+
+**3. Check the installation (~15 min).**
+
+```bash
+bash Scripts/amplicon_16s/run_end_to_end.sh --dry-run-only
+```
+
+It must end with `REPRODUCIBILITY CHECK PASSED` (3 samples, 71 ASVs, see
+[Verify the installation](#verify-the-installation)). If it does not, stop here: the full runs
+will not match either.
+
+**4. Run one small dataset (~30 min)** and compare it with the committed result:
+
+```bash
+CONFIG=configs/PRJNA801673.yaml bash Scripts/amplicon_16s/run_end_to_end.sh
+source ~/miniforge3/etc/profile.d/conda.sh && conda activate rachis-qiime2-2026.7
+python Scripts/amplicon_16s/compare_with_results.py PRJNA801673
+```
+
+The full run also logs `REPRODUCIBILITY CHECK PASSED` (every config holds the reference ASV and
+read counts), and the comparison prints `PRJNA801673  IDENTICAL`. It checks the samples, labels,
+ASV count, DADA2 reads per sample, and every value of the genus table.
+
+**5. Run all 14 datasets (~63 h on 16 threads, ~90 GB disk)** with the loop in
+[section 4](#all-datasets), inside `tmux` so it survives closing the terminal. Rerunning the same
+command resumes where it stopped. Then merge and compare everything:
+
+```bash
+python Scripts/amplicon_16s/merge_genus_tables.py
+python Scripts/amplicon_16s/compare_with_results.py      # one line per dataset + merged: IDENTICAL
+```
+
+| Run time on 16 threads | Datasets |
+|---|---|
+| under 1 h | PRJNA801673, PRJEB51982, PRJEB86129, PRJNA770746 |
+| 1–3 h | PRJNA690972, PRJNA792014, PRJNA554111, PRJNA496408_figaro |
+| 4–5 h | PRJNA489760, PRJNA734525_batch2, PRJNA633959 |
+| 8–13 h | PRJNA946900, PRJNA734525_batch1, PRJNA811324, PRJNA855571 |
+
+Expect 3–4× longer on a 4-core laptop. Per-step times of our runs are in
+`results/<dataset>/full/step_timings.json`.
+
+**If something differs:** check the QIIME 2 version in the log (`qiime --version` must say 2026.7),
+and the `expected_results_check.json` file in `~/biomefm_runs/<dataset>/cohorts/full/`, which lists
+the numbers that differ. If NCBI ever changes a project's metadata, the pipeline stops at the first
+step with a message about the sample or group counts, so it never silently uses other samples.
 
 ---
 
@@ -88,7 +157,7 @@ its own choice in its header comment.
 | OS | Linux, macOS (Intel or Apple Silicon), or Windows 10/11 (through WSL, set up by the helper script) | Linux |
 | CPU | 4 cores | 8+ cores (every core is used automatically) |
 | RAM | 16 GB | 32 GB |
-| Disk | 30 GB free for one dataset; ~150 GB for all 15 | |
+| Disk | 2–20 GB per dataset (PRJNA946900 is the largest); ~90 GB for all 14 | |
 | Internet | to download the data (NCBI SRA) and the SILVA reference | |
 
 **Run time.** The slowest step is taxonomy assignment (VSEARCH against SILVA), which grows
@@ -174,7 +243,7 @@ assigns taxonomy and writes the genus tables and the analysis report.
 
 ```bash
 for c in PRJNA792014 PRJNA690972 PRJEB51982 PRJNA801673 PRJNA811324 PRJNA554111 PRJNA734525_batch1 PRJNA734525_batch2 \
-         PRJNA489760 PRJNA770746 PRJEB86129 PRJNA855571 PRJNA633959 PRJNA946900; do
+         PRJNA496408_figaro PRJNA489760 PRJNA770746 PRJEB86129 PRJNA855571 PRJNA633959 PRJNA946900; do
   CONFIG=configs/$c.yaml bash Scripts/amplicon_16s/run_end_to_end.sh || echo "FAILED: $c"
 done
 ```
@@ -192,7 +261,7 @@ that have labels, smallest first. Their finished results are already in `results
 ### Merge the datasets into one matrix
 
 ```bash
-conda activate rachis-qiime2-2026.7
+source ~/miniforge3/etc/profile.d/conda.sh && conda activate rachis-qiime2-2026.7
 python Scripts/amplicon_16s/merge_genus_tables.py            # every finished dataset in outputs/
 ```
 
@@ -289,7 +358,7 @@ The analysis report contains:
 To re-run only the analysis on an existing result:
 
 ```bash
-conda activate rachis-qiime2-2026.7
+source ~/miniforge3/etc/profile.d/conda.sh && conda activate rachis-qiime2-2026.7
 python Scripts/amplicon_16s/analyze_genus.py --cohort-dir ~/biomefm_runs/<dataset>/cohorts/full
 ```
 

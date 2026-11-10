@@ -23,6 +23,14 @@ modes:
   validation: {n_samples: 10}
   full: {}
 
+# Reference numbers of the committed results. A run that matches logs
+# REPRODUCIBILITY CHECK PASSED (the pipeline is deterministic for identical input).
+expected_results:
+  full:                        # 2026-11-09 run, QIIME 2 2026.7, FIGARO trunc 250/199, maxEE 3/3; = results/PRJNA496408_figaro/full
+    asvs: 3771
+    total_input: 4295280
+    total_non_chimeric: 2970471
+
 primers:                       # as in PRJNA496408.yaml (806R-like on R1, 338F-like on R2, position 0)
   r1: GGACTACHVGGGTWTCTAAT
   r2: ACTCCTACGGGAGGCAGCAG

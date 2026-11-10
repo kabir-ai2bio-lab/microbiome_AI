@@ -27,6 +27,14 @@ modes:
 
 # Verified in raw reads: single reads of 440-470 bp (merged pairs) starting with 341F and ending with
 # the reverse-complemented 805R; both are removed (degenerate primer bases would create false ASVs).
+# Reference numbers of the committed results. A run that matches logs
+# REPRODUCIBILITY CHECK PASSED (the pipeline is deterministic for identical input).
+expected_results:
+  full:                        # 2026-11-09 run, QIIME 2 2026.7, single-end, config truncation; = results/PRJNA855571/full
+    asvs: 9011
+    total_input: 13631924
+    total_non_chimeric: 8057603
+
 primers:
   r1: CCTACGGGNGGCWGCAG          # 341F
   r1_3prime: GGATTAGATACCCBDGTAGTC  # reverse complement of 805R

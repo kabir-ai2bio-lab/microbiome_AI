@@ -24,6 +24,14 @@ modes:
 
 # Verified in raw reads (2 x 238): 515F-Y and 926R at position 0, but in MIXED orientation (about half
 # of the pairs have 926R on read 1). reorient swaps those mates first, so Cutadapt keeps them.
+# Reference numbers of the committed results. A run that matches logs
+# REPRODUCIBILITY CHECK PASSED (the pipeline is deterministic for identical input).
+expected_results:
+  full:                        # 2026-11-09 run, QIIME 2 2026.7, FIGARO trunc 218/182, maxEE 2/1; = results/PRJNA946900/full
+    asvs: 9816
+    total_input: 28329956
+    total_non_chimeric: 21361214
+
 primers:
   r1: GTGYCAGCMGCCGCGGTAA      # 515F-Y
   r2: CCGYCAATTYMTTTRAGTTT     # 926R
